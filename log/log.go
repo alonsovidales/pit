@@ -12,7 +12,7 @@ const (
 	// DEBUG used to specify the "debug" level in order to print all the log messages
 	DEBUG = 1
 	// INFO used to specify the "info" level in order to print the info + error + fatal messages
-	INFO  = 2
+	INFO = 2
 	// ERROR used to specify the "error" level in order to print the error + fatal messages
 	ERROR = 3
 	// FATAL used to specify the "fatal" level in order to print only the fatal log lines

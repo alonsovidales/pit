@@ -1,4 +1,4 @@
-package config
+package cfg
 
 // Package designed as easy to use interface for parse INI files
 
