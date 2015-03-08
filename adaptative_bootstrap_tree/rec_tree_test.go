@@ -33,7 +33,7 @@ func TestCollabInsertion(t *testing.T) {
 		records = append(records, scores)
 	}
 	log.Info("Generating tree...")
-	tr := GetNewTree(records, 10)
+	tr := GetNewTree(records, 10, 5)
 	log.Info("Tree generated...")
 	tr.printTree()
 }

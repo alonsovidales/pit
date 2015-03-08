@@ -5,9 +5,7 @@ import (
 )
 
 const (
-	MAX_SCORE = 5
-	MIN_SCORE = 0
-	MAX_TREE_DEEP = 3
+	MAX_CLUSTERS = 10
 )
 
 type BoostrapRecTree interface {
@@ -22,36 +20,42 @@ type tNode struct {
 	dislike *tNode
 }
 
+type cluster struct {
+	tree *Tree
+}
+
 type Tree struct {
 	BoostrapRecTree
 
 	tree *tNode
 	maxDeep int
+	maxScore uint8
 }
 
 type elemTotals struct {
 	elemId uint64
-	sum float64
-	sum2 float64
+	sum uint64
+	sum2 uint64
+	err uint64
 	n uint64
 }
 
 type elemSums struct {
-	sumL float64
-	sum2L float64
+	sumL uint64
+	sum2L uint64
 	nL uint64
-	sumH float64
-	sum2H float64
+	sumH uint64
+	sum2H uint64
 	nH uint64
-	sumU float64
-	sum2U float64
+	sumU uint64
+	sum2U uint64
 	nU uint64
 	errL float64
 	errH float64
 	errU float64
 }
 
-func GetNewTree(records []map[uint64]uint8, maxDeep int) (tr *Tree) {
+func GetNewTree(records []map[uint64]uint8, maxDeep int, maxScore uint8) (tr *Tree) {
 	var maxFreq, maxElem uint64
 
 	elementsTotals := []elemTotals{}
@@ -63,17 +67,19 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int) (tr *Tree) {
 	i := 0
 	for _, record := range records {
 		for k, v := range record {
-			vUint64 := float64(v) / MAX_SCORE
+			vUint64 := uint64(v)
 			v2Uint64 := vUint64*vUint64
 			if p, ok := elemsPos[k]; ok {
 				elementsTotals[p].sum += vUint64
 				elementsTotals[p].sum2 += v2Uint64
+				elementsTotals[p].err += uint64((maxScore - v) * (maxScore - v))
 				elementsTotals[p].n++
 			} else {
 				elementsTotals = append(elementsTotals, elemTotals{
 					elemId: k,
 					sum: vUint64,
 					sum2: v2Uint64,
+					err: uint64((maxScore - v) * (maxScore - v)),
 					n: 1,
 				})
 				elemsPos[k] = i
@@ -90,6 +96,7 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int) (tr *Tree) {
 	delete(elemsPos, maxElem)
 	tr = &Tree {
 		maxDeep: maxDeep,
+		maxScore: maxScore,
 	}
 	tr.tree = tr.getTreeNode(maxElem, elemsPos, elementsTotals, records, 1)
 
@@ -100,12 +107,38 @@ func (tr *Tree) GetBestRecommendation(recordId uint64, recomendations uint64) (r
 	return
 }
 
+// defineClusters Use "apriori" in order to define clusters of users based on the
+// scored items:
+//  - http://en.wikipedia.org/wiki/Apriori_algorithm
+func (tr *Tree) defineClusters(records []map[uint64]uint8) (clusters []*cluster) {
+	clusters = make([]*cluster, MAX_CLUSTERS)
+	elemtsFreq := make(map[uint64]uint64)
+	totalElems := 0
+	for _, record := range records {
+		for k, _ := range record {
+			totalElems++
+			if _, ok := elementsSet[k]; ok {
+				elementsSet[k]++
+			} else {
+				elementsSet[k] = 1
+			}
+		}
+	}
+
+	// Get the MAX_CLUSTERS with a higest freq
+	maxFreqElems := make(map[[]uint64]int)
+	minFreq := 0
+	for 
+
+	return
+}
+
 func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTotals []elemTotals, records []map[uint64]uint8, deep int) (tn *tNode) {
 	tn = &tNode {
 		value: fromElem,
 	}
 
-	if len(elemsPos) == 0 || deep > MAX_TREE_DEEP {
+	if len(elemsPos) == 0 || deep > tr.maxDeep {
 		return
 	}
 
@@ -117,16 +150,16 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 			// calculate the totals
 			for elem, pos := range elemsPos {
 				if j, isJ := record[elem]; isJ {
-					jFloat64 := float64(j) / MAX_SCORE
-					j2Float64 := jFloat64*jFloat64
+					jUint64 := uint64(j)
+					j2Uint64 := jUint64*jUint64
 
-					if float64(v) >= (MAX_SCORE / 2) {
-						totals[pos].sumL += jFloat64
-						totals[pos].sum2L += j2Float64
+					if v >= tr.maxScore / 2 {
+						totals[pos].sumL += jUint64
+						totals[pos].sum2L += j2Uint64
 						totals[pos].nL++
 					} else {
-						totals[pos].sumH += jFloat64
-						totals[pos].sum2H += j2Float64
+						totals[pos].sumH += jUint64
+						totals[pos].sum2H += j2Uint64
 						totals[pos].nH++
 					}
 				}
@@ -147,9 +180,9 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 	maxScoreH := 0.0
 	maxScoreU := 0.0
 	for _, pos := range elemsPos {
-		errL := totals[pos].sum2L - (totals[pos].sumL*totals[pos].sumL) / float64(totals[pos].nL)
-		errH := totals[pos].sum2H - (totals[pos].sumH*totals[pos].sumH) / float64(totals[pos].nH)
-		errU := totals[pos].sum2U - (totals[pos].sumU*totals[pos].sumU) / float64(totals[pos].nU)
+		errL := float64(totals[pos].sumL*totals[pos].sumL - totals[pos].sum2L) / float64(totals[pos].nL)
+		errH := float64(totals[pos].sumH*totals[pos].sumH - totals[pos].sum2H) / float64(totals[pos].nH)
+		errU := float64(totals[pos].sumU*totals[pos].sumU - totals[pos].sum2U) / float64(totals[pos].nU)
 
 		if maxScoreL < errL {
 			maxScoreL = errL
@@ -165,27 +198,25 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 		}
 	}
 
-	log.Debug("MaxsL:", maxScoreL, maxLike, "Avg:", totals[elemsPos[maxLike]].sumL / float64(totals[elemsPos[maxLike]].nL), "Deep:", deep, totals[elemsPos[maxLike]])
-	log.Debug("MaxsH:", maxScoreH, maxHate, "Avg:", totals[elemsPos[maxHate]].sumH / float64(totals[elemsPos[maxHate]].nH), "Deep:", deep, totals[elemsPos[maxLike]])
-	log.Debug("MaxsU:", maxScoreU, maxUnknown, "Avg:", totals[elemsPos[maxUnknown]].sumU / float64(totals[elemsPos[maxUnknown]].nU), "Deep:", deep, totals[elemsPos[maxLike]])
+	log.Debug("MaxsL:", maxScoreL, maxLike, "Avg:", float64(totals[elemsPos[maxLike]].sumL) / float64(totals[elemsPos[maxLike]].nL), "Deep:", deep, totals[elemsPos[maxLike]])
+	log.Debug("MaxsH:", maxScoreH, maxHate, "Avg:", float64(totals[elemsPos[maxHate]].sumH) / float64(totals[elemsPos[maxHate]].nH), "Deep:", deep, totals[elemsPos[maxLike]])
+	log.Debug("MaxsU:", maxScoreU, maxUnknown, "Avg:", float64(totals[elemsPos[maxUnknown]].sumU) / float64(totals[elemsPos[maxUnknown]].nU), "Deep:", deep, totals[elemsPos[maxLike]])
 
-	//return
-
-	if totals[elemsPos[maxLike]].sumL / float64(totals[elemsPos[maxLike]].nL) > 0.5 {
+	if totals[elemsPos[maxLike]].sumL / totals[elemsPos[maxLike]].nL >= uint64(tr.maxScore / 2 + 1) {
 		pos = elemsPos[maxLike]
 		delete(elemsPos, maxLike)
 		tn.like = tr.getTreeNode(maxLike, elemsPos, elementsTotals, records, deep+1)
 		elemsPos[maxLike] = pos
 	}
 
-	if totals[elemsPos[maxHate]].sumH / float64(totals[elemsPos[maxLike]].nH) > 0.5 {
+	if totals[elemsPos[maxHate]].sumH / totals[elemsPos[maxLike]].nH >= uint64(tr.maxScore / 2 + 1) {
 		pos = elemsPos[maxHate]
 		delete(elemsPos, maxHate)
 		tn.dislike = tr.getTreeNode(maxHate, elemsPos, elementsTotals, records, deep+1)
 		elemsPos[maxHate] = pos
 	}
 
-	if totals[elemsPos[maxUnknown]].sumU / float64(totals[elemsPos[maxLike]].nU) > 0.5 {
+	if totals[elemsPos[maxUnknown]].sumU / totals[elemsPos[maxLike]].nU >= uint64(tr.maxScore / 2 + 1) {
 		pos = elemsPos[maxUnknown]
 		delete(elemsPos, maxUnknown)
 		tn.unknown = tr.getTreeNode(maxUnknown, elemsPos, elementsTotals, records, deep+1)
