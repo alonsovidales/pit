@@ -2,12 +2,12 @@ package rectree
 
 import (
 	"github.com/alonsovidales/pit/log"
-	"math"
 )
 
 const (
 	MAX_SCORE = 5
 	MIN_SCORE = 0
+	MAX_TREE_DEEP = 3
 )
 
 type BoostrapRecTree interface {
@@ -31,9 +31,24 @@ type Tree struct {
 
 type elemTotals struct {
 	elemId uint64
-	sum uint64
-	sum2 uint64
+	sum float64
+	sum2 float64
 	n uint64
+}
+
+type elemSums struct {
+	sumL float64
+	sum2L float64
+	nL uint64
+	sumH float64
+	sum2H float64
+	nH uint64
+	sumU float64
+	sum2U float64
+	nU uint64
+	errL float64
+	errH float64
+	errU float64
 }
 
 func GetNewTree(records []map[uint64]uint8, maxDeep int) (tr *Tree) {
@@ -48,7 +63,7 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int) (tr *Tree) {
 	i := 0
 	for _, record := range records {
 		for k, v := range record {
-			vUint64 := uint64(v)
+			vUint64 := float64(v) / MAX_SCORE
 			v2Uint64 := vUint64*vUint64
 			if p, ok := elemsPos[k]; ok {
 				elementsTotals[p].sum += vUint64
@@ -76,7 +91,7 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int) (tr *Tree) {
 	tr = &Tree {
 		maxDeep: maxDeep,
 	}
-	tr.tree = tr.getTreeNode(maxElem, elemsPos, elementsTotals, records)
+	tr.tree = tr.getTreeNode(maxElem, elemsPos, elementsTotals, records, 1)
 
 	return
 }
@@ -85,27 +100,12 @@ func (tr *Tree) GetBestRecommendation(recordId uint64, recomendations uint64) (r
 	return
 }
 
-type elemSums struct {
-	sumL uint64
-	sum2L uint64
-	nL uint64
-	sumH uint64
-	sum2H uint64
-	nH uint64
-	sumU uint64
-	sum2U uint64
-	nU uint64
-	errL float64
-	errH float64
-	errU float64
-}
-
-func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTotals []elemTotals, records []map[uint64]uint8) (tn *tNode) {
+func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTotals []elemTotals, records []map[uint64]uint8, deep int) (tn *tNode) {
 	tn = &tNode {
 		value: fromElem,
 	}
 
-	if len(elemsPos) == 0 {
+	if len(elemsPos) == 0 || deep > MAX_TREE_DEEP {
 		return
 	}
 
@@ -117,16 +117,16 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 			// calculate the totals
 			for elem, pos := range elemsPos {
 				if j, isJ := record[elem]; isJ {
-					jUint64 := uint64(j)
-					j2Uint64 := jUint64*jUint64
+					jFloat64 := float64(j) / MAX_SCORE
+					j2Float64 := jFloat64*jFloat64
 
-					if v >= (MAX_SCORE / 2) {
-						totals[pos].sumL += jUint64
-						totals[pos].sum2L += j2Uint64
+					if float64(v) >= (MAX_SCORE / 2) {
+						totals[pos].sumL += jFloat64
+						totals[pos].sum2L += j2Float64
 						totals[pos].nL++
 					} else {
-						totals[pos].sumH += jUint64
-						totals[pos].sum2H += j2Uint64
+						totals[pos].sumH += jFloat64
+						totals[pos].sum2H += j2Float64
 						totals[pos].nH++
 					}
 				}
@@ -142,86 +142,76 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 
 	// Compute the error for each element
 	var maxLike, maxHate, maxUnknown uint64
+	var pos int
 	maxScoreL := 0.0
 	maxScoreH := 0.0
 	maxScoreU := 0.0
 	for _, pos := range elemsPos {
-		scoreL := float64((totals[pos].sumL*totals[pos].sumL) - totals[pos].sum2L) / float64(totals[pos].nL)
-		scoreH := float64((totals[pos].sumH*totals[pos].sumH) - totals[pos].sum2H) / float64(totals[pos].nH)
-		scoreU := float64((totals[pos].sumU*totals[pos].sumU) - totals[pos].sum2U) / float64(totals[pos].nU)
+		errL := totals[pos].sum2L - (totals[pos].sumL*totals[pos].sumL) / float64(totals[pos].nL)
+		errH := totals[pos].sum2H - (totals[pos].sumH*totals[pos].sumH) / float64(totals[pos].nH)
+		errU := totals[pos].sum2U - (totals[pos].sumU*totals[pos].sumU) / float64(totals[pos].nU)
 
-		if maxScoreL < scoreL {
-			maxScoreL = scoreL
+		if maxScoreL < errL {
+			maxScoreL = errL
 			maxLike = elementsTotals[pos].elemId
 		}
-		if maxScoreH < scoreH {
-			maxScoreH = scoreH
+		if maxScoreH < errH {
+			maxScoreH = errH
 			maxHate = elementsTotals[pos].elemId
 		}
-		if maxScoreU < scoreU {
-			maxScoreU = scoreU
+		if maxScoreU < errU {
+			maxScoreU = errU
 			maxUnknown = elementsTotals[pos].elemId
 		}
 	}
 
-	log.Debug("MaxsL:", maxScoreL, maxLike, totals[elemsPos[maxLike]], float64(totals[elemsPos[maxLike]].sumL) / float64(totals[elemsPos[maxLike]].nL), totals[elemsPos[maxLike]].nL)
-	log.Debug("MaxsH:", maxScoreH, maxHate, totals[elemsPos[maxHate]], float64(totals[elemsPos[maxHate]].sumH) / float64(totals[elemsPos[maxHate]].nH), totals[elemsPos[maxLike]].nH)
-	log.Debug("MaxsU:", maxScoreU, maxUnknown, totals[elemsPos[maxUnknown]], float64(totals[elemsPos[maxUnknown]].sumU) / float64(totals[elemsPos[maxUnknown]].nU), totals[elemsPos[maxLike]].nU)
+	log.Debug("MaxsL:", maxScoreL, maxLike, "Avg:", totals[elemsPos[maxLike]].sumL / float64(totals[elemsPos[maxLike]].nL), "Deep:", deep, totals[elemsPos[maxLike]])
+	log.Debug("MaxsH:", maxScoreH, maxHate, "Avg:", totals[elemsPos[maxHate]].sumH / float64(totals[elemsPos[maxHate]].nH), "Deep:", deep, totals[elemsPos[maxLike]])
+	log.Debug("MaxsU:", maxScoreU, maxUnknown, "Avg:", totals[elemsPos[maxUnknown]].sumU / float64(totals[elemsPos[maxUnknown]].nU), "Deep:", deep, totals[elemsPos[maxLike]])
 
-	return
+	//return
 
-	//func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTotals []elemTotals, records []map[uint64]uint8) (tn *tNode) {
-	pos := elemsPos[maxLike]
-	delete(elemsPos, maxLike)
-	tn.like = tr.getTreeNode(maxLike, elemsPos, elementsTotals, records)
-	elemsPos[maxLike] = pos
+	if totals[elemsPos[maxLike]].sumL / float64(totals[elemsPos[maxLike]].nL) > 0.5 {
+		pos = elemsPos[maxLike]
+		delete(elemsPos, maxLike)
+		tn.like = tr.getTreeNode(maxLike, elemsPos, elementsTotals, records, deep+1)
+		elemsPos[maxLike] = pos
+	}
 
-	pos = elemsPos[maxHate]
-	delete(elemsPos, maxHate)
-	tn.like = tr.getTreeNode(maxHate, elemsPos, elementsTotals, records)
-	elemsPos[maxHate] = pos
+	if totals[elemsPos[maxHate]].sumH / float64(totals[elemsPos[maxLike]].nH) > 0.5 {
+		pos = elemsPos[maxHate]
+		delete(elemsPos, maxHate)
+		tn.dislike = tr.getTreeNode(maxHate, elemsPos, elementsTotals, records, deep+1)
+		elemsPos[maxHate] = pos
+	}
 
-	pos = elemsPos[maxUnknown]
-	delete(elemsPos, maxUnknown)
-	tn.like = tr.getTreeNode(maxUnknown, elemsPos, elementsTotals, records)
-	elemsPos[maxUnknown] = pos
+	if totals[elemsPos[maxUnknown]].sumU / float64(totals[elemsPos[maxLike]].nU) > 0.5 {
+		pos = elemsPos[maxUnknown]
+		delete(elemsPos, maxUnknown)
+		tn.unknown = tr.getTreeNode(maxUnknown, elemsPos, elementsTotals, records, deep+1)
+		elemsPos[maxUnknown] = pos
+	}
 
 	return
 }
 
-// getMinLossElement Returns the recordID with the min value on the loss
-// function across all the elements, that is the sum of the squares minus the
-// square of the sum divided by the number of elements
-func (tr *Tree) getMinLossElement(records []map[uint64]uint8, elements map[uint64]uint64) (minLoss uint64, found bool) {
-	minLoss = 0
-	found = false
-	minError := float64(math.Inf(1))
-	log.Debug("Estimating for:", len(records), "records...")
-	for elem, _ := range elements {
-		sumSquares := uint64(0)
-		sum := uint64(0)
-		elems := uint64(0)
-		for _, record := range records {
-			if v, ok := record[elem]; ok {
-				el64 := uint64(MAX_SCORE - v)
-				elems++
-				sum += el64
-				sumSquares += el64 * el64
-			}
-		}
+func (tr *Tree) printTree() {
+	queue := []*tNode{tr.tree}
 
-		if elems > 0 {
-			error := math.Sqrt(float64((sumSquares - (sum * sum)) / elems))
-			// The higest score is the one with the min loss
-			if minError > error {
-				log.Debug("Error:", elem, elems, error)
-				minError = error
-				minLoss = elem
-				found = true
-			}
+	for len(queue) > 0 {
+		node := queue[0]
+		queue = queue[1:]
+
+		log.Debug(node.value)
+
+		if node.like != nil {
+			queue = append(queue, node.like)
+		}
+		if node.unknown != nil {
+			queue = append(queue, node.unknown)
+		}
+		if node.dislike != nil {
+			queue = append(queue, node.dislike)
 		}
 	}
-
-	log.Debug("getMinLossElement:", len(records), len(elements), minLoss)
-	return
 }

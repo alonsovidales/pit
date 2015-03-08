@@ -1,4 +1,4 @@
-um2Lackage rectree
+package rectree
 
 import (
 	"os"
@@ -35,7 +35,7 @@ func TestCollabInsertion(t *testing.T) {
 	log.Info("Generating tree...")
 	tr := GetNewTree(records, 10)
 	log.Info("Tree generated...")
-	log.Debug(tr)
+	tr.printTree()
 }
 
 func Readln(r *bufio.Reader) (string, error) {
