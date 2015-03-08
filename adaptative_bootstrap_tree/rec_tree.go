@@ -29,32 +29,54 @@ type Tree struct {
 	maxDeep int
 }
 
+type elemTotals struct {
+	elemId uint64
+	sum uint64
+	sum2 uint64
+	n uint64
+}
+
 func GetNewTree(records []map[uint64]uint8, maxDeep int) (tr *Tree) {
 	var maxFreq, maxElem uint64
 
-	elementsFreq := make(map[uint64]uint64)
+	elementsTotals := []elemTotals{}
+	elemsPos := make(map[uint64]int)
 
 	// Get the most commont element in order to be used as root of the tree
+	// Calculates the sum and the square sum of all the elements on the
+	// records
+	i := 0
 	for _, record := range records {
-		for k, _ := range record {
-			if _, ok := elementsFreq[k]; ok {
-				elementsFreq[k]++
+		for k, v := range record {
+			vUint64 := uint64(v)
+			v2Uint64 := vUint64*vUint64
+			if p, ok := elemsPos[k]; ok {
+				elementsTotals[p].sum += vUint64
+				elementsTotals[p].sum2 += v2Uint64
+				elementsTotals[p].n++
 			} else {
-				elementsFreq[k] = 1
+				elementsTotals = append(elementsTotals, elemTotals{
+					elemId: k,
+					sum: vUint64,
+					sum2: v2Uint64,
+					n: 1,
+				})
+				elemsPos[k] = i
+				i++
 			}
 
-			if maxFreq < elementsFreq[k] {
-				maxFreq = elementsFreq[k]
+			if maxFreq < elementsTotals[elemsPos[k]].n {
+				maxFreq = elementsTotals[elemsPos[k]].n
 				maxElem = k
 			}
 		}
 	}
 
-	delete(elementsFreq, maxElem)
+	delete(elemsPos, maxElem)
 	tr = &Tree {
 		maxDeep: maxDeep,
 	}
-	tr.tree = tr.getTreeNode(maxElem, elementsFreq, records, maxDeep)
+	tr.tree = tr.getTreeNode(maxElem, elemsPos, elementsTotals, records)
 
 	return
 }
@@ -63,66 +85,106 @@ func (tr *Tree) GetBestRecommendation(recordId uint64, recomendations uint64) (r
 	return
 }
 
-func (tr *Tree) getTreeNode(fromElem uint64, elementsFreq map[uint64]uint64, records []map[uint64]uint8, maxDeep int) (tn *tNode) {
+type elemSums struct {
+	sumL uint64
+	sum2L uint64
+	nL uint64
+	sumH uint64
+	sum2H uint64
+	nH uint64
+	sumU uint64
+	sum2U uint64
+	nU uint64
+	errL float64
+	errH float64
+	errU float64
+}
+
+func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTotals []elemTotals, records []map[uint64]uint8) (tn *tNode) {
 	tn = &tNode {
 		value: fromElem,
 	}
 
-	if len(records) == 0 {
+	if len(elemsPos) == 0 {
 		return
 	}
 
-	// Get the tree best matches for like, dislike or unknown
-	// We need likeMinLoss, dislikeMinLoss, unknownMinLoss
-	// Split the records on groups of like, dislike, unknown
-	groups := [3][]map[uint64]uint8 {
-		[]map[uint64]uint8{}, // like
-		[]map[uint64]uint8{}, // dislike
-		[]map[uint64]uint8{}, // unknown
-	}
+	totals := make([]elemSums, len(elementsTotals))
+
 	for _, record := range records {
 		if v, ok := record[fromElem]; ok {
-			if v > (MAX_SCORE / 2) {
-				groups[0] = append(groups[0], record)
-			} else {
-				groups[1] = append(groups[1], record)
+			// We have a score for this element on this record
+			// calculate the totals
+			for elem, pos := range elemsPos {
+				if j, isJ := record[elem]; isJ {
+					jUint64 := uint64(j)
+					j2Uint64 := jUint64*jUint64
+
+					if v >= (MAX_SCORE / 2) {
+						totals[pos].sumL += jUint64
+						totals[pos].sum2L += j2Uint64
+						totals[pos].nL++
+					} else {
+						totals[pos].sumH += jUint64
+						totals[pos].sum2H += j2Uint64
+						totals[pos].nH++
+					}
+				}
 			}
-		} else {
-			groups[2] = append(groups[2], record)
 		}
 	}
 
-	log.Debug("Like:", len(groups[0]), "Dislike:", len(groups[1]),"Unknown:", len(groups[2]))
-
-	likeMinLoss, found := tr.getMinLossElement(groups[0], elementsFreq)
-	elementsFreqCopy := tr.copyElemsFreq(elementsFreq)
-	if found {
-		delete(elementsFreqCopy, likeMinLoss)
-		tn.like = tr.getTreeNode(likeMinLoss, elementsFreqCopy, records, maxDeep-1)
-		elementsFreqCopy[likeMinLoss] = 1
+	for _, pos := range elemsPos {
+		totals[pos].sumU = elementsTotals[pos].sum - totals[pos].sumL - totals[pos].sumH
+		totals[pos].sum2U = elementsTotals[pos].sum2 - totals[pos].sum2L - totals[pos].sum2H
+		totals[pos].nU = elementsTotals[pos].n - totals[pos].nL - totals[pos].nH
 	}
 
-	dislikeMinLoss, found := tr.getMinLossElement(groups[1], elementsFreq)
-	if found {
-		delete(elementsFreqCopy, dislikeMinLoss)
-		tn.dislike = tr.getTreeNode(dislikeMinLoss, elementsFreqCopy, records, maxDeep-1)
-		elementsFreqCopy[dislikeMinLoss] = 1
+	// Compute the error for each element
+	var maxLike, maxHate, maxUnknown uint64
+	maxScoreL := 0.0
+	maxScoreH := 0.0
+	maxScoreU := 0.0
+	for _, pos := range elemsPos {
+		scoreL := float64((totals[pos].sumL*totals[pos].sumL) - totals[pos].sum2L) / float64(totals[pos].nL)
+		scoreH := float64((totals[pos].sumH*totals[pos].sumH) - totals[pos].sum2H) / float64(totals[pos].nH)
+		scoreU := float64((totals[pos].sumU*totals[pos].sumU) - totals[pos].sum2U) / float64(totals[pos].nU)
+
+		if maxScoreL < scoreL {
+			maxScoreL = scoreL
+			maxLike = elementsTotals[pos].elemId
+		}
+		if maxScoreH < scoreH {
+			maxScoreH = scoreH
+			maxHate = elementsTotals[pos].elemId
+		}
+		if maxScoreU < scoreU {
+			maxScoreU = scoreU
+			maxUnknown = elementsTotals[pos].elemId
+		}
 	}
 
-	//unknownMinLoss := tr.getMinLossElement(groups[2], elementsFreq)
-	/*elementsFreqCopy[dislikeMinLoss] = 1
-	delete(elementsFreqCopy, unknownMinLoss)
-	tn.unknown = tr.getTreeNode(unknownMinLoss, elementsFreqCopy, records, maxDeep-1)*/
+	log.Debug("MaxsL:", maxScoreL, maxLike, totals[elemsPos[maxLike]], float64(totals[elemsPos[maxLike]].sumL) / float64(totals[elemsPos[maxLike]].nL), totals[elemsPos[maxLike]].nL)
+	log.Debug("MaxsH:", maxScoreH, maxHate, totals[elemsPos[maxHate]], float64(totals[elemsPos[maxHate]].sumH) / float64(totals[elemsPos[maxHate]].nH), totals[elemsPos[maxLike]].nH)
+	log.Debug("MaxsU:", maxScoreU, maxUnknown, totals[elemsPos[maxUnknown]], float64(totals[elemsPos[maxUnknown]].sumU) / float64(totals[elemsPos[maxUnknown]].nU), totals[elemsPos[maxLike]].nU)
 
 	return
-}
 
-func (tr *Tree) copyElemsFreq(elems map[uint64]uint64) (cp map[uint64]uint64) {
-	cp = make(map[uint64]uint64)
+	//func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTotals []elemTotals, records []map[uint64]uint8) (tn *tNode) {
+	pos := elemsPos[maxLike]
+	delete(elemsPos, maxLike)
+	tn.like = tr.getTreeNode(maxLike, elemsPos, elementsTotals, records)
+	elemsPos[maxLike] = pos
 
-	for k, v := range elems {
-		cp[k] = v
-	}
+	pos = elemsPos[maxHate]
+	delete(elemsPos, maxHate)
+	tn.like = tr.getTreeNode(maxHate, elemsPos, elementsTotals, records)
+	elemsPos[maxHate] = pos
+
+	pos = elemsPos[maxUnknown]
+	delete(elemsPos, maxUnknown)
+	tn.like = tr.getTreeNode(maxUnknown, elemsPos, elementsTotals, records)
+	elemsPos[maxUnknown] = pos
 
 	return
 }

@@ -1,4 +1,4 @@
-package rectree
+um2Lackage rectree
 
 import (
 	"os"
