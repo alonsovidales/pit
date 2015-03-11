@@ -137,6 +137,7 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberO
 func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec []uint64) {
 	// Will store all the recomendations by level, as deeper as best
 	bestRecsByLevels := [][]uint64{}
+	secondaryByLevels := [][]*scoresClassifications{}
 
 	for elemId, tree := range tr.tree {
 		log.Debug("Studing tree:", elemId)
@@ -144,17 +145,27 @@ func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec
 		for tree != nil {
 			if len(bestRecsByLevels) <= level {
 				bestRecsByLevels = append(bestRecsByLevels, []uint64{tree.value})
+				secondaryByLevels = append(secondaryByLevels, []*scoresClassifications{})
 			} else {
 				bestRecsByLevels[level] = append(bestRecsByLevels[level], tree.value)
 			}
 
 			if score, classified := values[elemId]; classified {
 				if score >= tr.maxScore / 2 {
+					if tree.bestRecL != nil {
+						secondaryByLevels[level] = append(secondaryByLevels[level], tree.bestRecL...)
+					}
 					tree = tree.like
 				} else {
+					if tree.bestRecD != nil {
+						secondaryByLevels[level] = append(secondaryByLevels[level], tree.bestRecD...)
+					}
 					tree = tree.dislike
 				}
 			} else {
+				if tree.bestRecU != nil {
+					secondaryByLevels[level] = append(secondaryByLevels[level], tree.bestRecU...)
+				}
 				tree = tree.unknown
 			}
 			level++
@@ -163,18 +174,44 @@ func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec
 
 	log.Debug("Scores by levels:", bestRecsByLevels)
 
-	rec = []uint64{}
+	recMap := make(map[uint64]bool)
 	log.Debug("Levels:", len(bestRecsByLevels))
 	for i := len(bestRecsByLevels)-1; i >= 0 && len(rec) < maxRecs; i-- {
 		for _, elem := range bestRecsByLevels[i] {
 			if score, classified := values[elem]; !classified {
-				rec = append(rec, elem)
+				recMap[elem] = true
 			} else {
 				tr.errSqr += uint64(tr.maxScore - score) * uint64(tr.maxScore - score)
 				tr.errTotal++
 				log.Debug("Level:", i, "Classification:", score, "Distance:", tr.maxScore - score)
 			}
 		}
+	}
+
+	// Populate the list of recomended elements 
+	secondaryElemsLoop:
+	for i := len(bestRecsByLevels)-1; i >= 0 && len(rec) < maxRecs; i-- {
+		sort.Sort(ByClassif(secondaryByLevels[i]))
+
+		for _, elem := range secondaryByLevels[i] {
+			if score, classified := values[elem.elemId]; !classified {
+				recMap[elem.elemId] = true
+				if len(rec) >= maxRecs {
+					break secondaryElemsLoop
+				}
+			} else {
+				tr.errSqr += uint64(tr.maxScore - score) * uint64(tr.maxScore - score)
+				tr.errTotal++
+				log.Debug("Sec Level:", i, "Classification:", score, "Distance:", tr.maxScore - score)
+			}
+		}
+	}
+
+	i := 0
+	rec = make([]uint64, len(recMap))
+	for k, _ := range recMap {
+		rec[i] = k
+		i++
 	}
 
 	return

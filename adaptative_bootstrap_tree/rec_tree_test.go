@@ -27,13 +27,13 @@ func TestCollabInsertion(t *testing.T) {
 	s, e := Readln(r)
 	records := []map[uint64]uint8{}
 	log.Info("Parsing test file...")
-	for i := 0; e == nil && i < 200000; i++ {
+	for i := 0; e == nil && i < 100000; i++ {
 		s, e = Readln(r)
 		_, scores := parseLine(s)
 		records = append(records, scores)
 	}
 	log.Info("Generating tree...")
-	tr := GetNewTree(records, 50, 5, 20)
+	tr := GetNewTree(records, 50, 5, 10)
 	log.Info("Tree generated...")
 
 	for i := 0; e == nil && i < 100000; i++ {
