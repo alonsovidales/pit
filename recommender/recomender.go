@@ -2,10 +2,10 @@ package recommender
 
 import (
 	"github.com/alonsovidales/go_ml"
-	"time"
+	"github.com/alonsovidales/pit/log"
 	"runtime"
 	"sync"
-	"github.com/alonsovidales/pit/log"
+	"time"
 )
 
 const (
@@ -18,9 +18,9 @@ type RecommenderInt interface {
 }
 
 type score struct {
-	recID uint64
+	recID  uint64
 	scores map[uint64]float64
-	next *score
+	next   *score
 }
 
 type Recommender struct {
@@ -29,8 +29,8 @@ type Recommender struct {
 	maxMemBytes uint64
 
 	records map[uint64]*score
-	older *score
-	newer *score
+	older   *score
+	newer   *score
 
 	mutex sync.Mutex
 }
@@ -40,7 +40,7 @@ func Init(maxMemoryMb uint64) (rc *Recommender) {
 
 	rc = &Recommender{
 		maxMemBytes: uint64(maxMemoryMb) * 1000000,
-		records: make(map[uint64]*score),
+		records:     make(map[uint64]*score),
 	}
 
 	go rc.checkAndExpire()
@@ -59,8 +59,8 @@ func (rc *Recommender) CalcScores(recID uint64, scores map[uint64]float64, maxTo
 func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]float64) {
 	//log.Debug("Adding:", recID, "Scores:", scores)
 	if _, ok := rc.records[recID]; !ok {
-		sc := &score {
-			recID: recID,
+		sc := &score{
+			recID:  recID,
 			scores: scores,
 		}
 
@@ -85,13 +85,13 @@ func (rc *Recommender) checkAndExpire() {
 		runtime.ReadMemStats(memStats)
 		log.Debug("Mem:", memStats.Alloc)
 		if rc.maxMemBytes < memStats.Alloc {
-			lowBoundary := rc.maxMemBytes - uint64(float64(rc.maxMemBytes) * 0.1)
+			lowBoundary := rc.maxMemBytes - uint64(float64(rc.maxMemBytes)*0.1)
 			rc.mutex.Lock()
 			for i := 0; lowBoundary < memStats.Alloc && rc.older != nil; i++ {
 				delete(rc.records, rc.older.recID)
 				rc.older = rc.older.next
 				runtime.ReadMemStats(memStats)
-				if i  % 10 == 0 {
+				if i%10 == 0 {
 					runtime.GC()
 				}
 			}
@@ -126,7 +126,7 @@ func (rc *Recommender) startFiltering() {
 		}
 
 		cf := &ml.CollaborativeFilter{
-			Ratings: make([][]float64, len(keys)),
+			Ratings:          make([][]float64, len(keys)),
 			AvailableRatings: make([][]float64, len(keys)),
 		}
 

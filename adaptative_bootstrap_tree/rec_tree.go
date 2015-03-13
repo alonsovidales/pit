@@ -3,15 +3,36 @@ package rectree
 import (
 	"github.com/alonsovidales/pit/log"
 	"sort"
-	"math"
 )
 
 const (
-	MAX_ELEMS = 20
+	maxSecondaryElements = 20
 )
 
+// BoostrapRecTree All the structs that implements this interface has to be
+// able to process a list of records and return a list of recomended items
+// based on the previously classified items
 type BoostrapRecTree interface {
-	GetBestRecommendation(recordId uint64, recomendations uint64) ([]uint64)
+	// GetBestRecommendation Using the classification of the elements from
+	// the first values, this method process and returns a list of up to
+	// maxRecs items IDs
+	GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec []uint64)
+}
+
+// Tree Used to process and return lists of recommended items
+type Tree struct {
+	BoostrapRecTree
+
+	tree      map[uint64]*tNode
+	maxDeep   int
+	maxScore  uint8
+	totalRecs int
+
+	numOfTrees int
+
+	// Flag used to return all the records even the yet classified, used
+	// for test proposals only
+	testMode bool
 }
 
 type tNode struct {
@@ -21,60 +42,50 @@ type tNode struct {
 	bestRecU []*scoresClassifications
 	bestRecD []*scoresClassifications
 
-	like     *tNode
-	unknown  *tNode
-	dislike  *tNode
-}
-
-type Tree struct {
-	BoostrapRecTree
-
-	tree map[uint64]*tNode
-	maxDeep int
-	maxScore uint8
-	totalRecs int
-
-	numOfTrees int
-	errSqr uint64
-	errTotal uint64
+	like    *tNode
+	unknown *tNode
+	dislike *tNode
 }
 
 type elemTotals struct {
-	elemId uint64
-	sum uint64
-	sum2 uint64
-	err uint64
-	n uint64
+	elemID uint64
+	sum    uint64
+	sum2   uint64
+	err    uint64
+	n      uint64
 }
 
 type elemSums struct {
-	sumL uint64
-	sum2L uint64
-	nL uint64
-	sumH uint64
-	sum2H uint64
-	nH uint64
-	sumU uint64
-	sum2U uint64
-	nU uint64
+	sumL   uint64
+	sum2L  uint64
+	nL     uint64
+	sumH   uint64
+	sum2H  uint64
+	nH     uint64
+	sumU   uint64
+	sum2U  uint64
+	nU     uint64
 	scoreL float64
 	scoreH float64
 	scoreU float64
 }
 
 type scoresClassifications struct {
-	score float64
-	avg float64
-	elemId uint64
+	score  float64
+	avg    float64
+	elemID uint64
 }
 
-type ByClassif []*scoresClassifications
+type byClassif []*scoresClassifications
 
-func (a ByClassif) Len() int           { return len(a) }
-func (a ByClassif) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByClassif) Less(i, j int) bool { return a[i].score > a[j].score }
+func (a byClassif) Len() int           { return len(a) }
+func (a byClassif) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byClassif) Less(i, j int) bool { return a[i].score > a[j].score }
 
-func GetNewTree(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberOfTrees int) (tr *Tree) {
+// ProcessNewTrees Creates a new set of numberOfTrees decission trees with a
+// max deep of maxDeep. Specify on maxScore the max possible score for the
+// elements
+func ProcessNewTrees(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberOfTrees int) (tr *Tree) {
 	elementsTotals := []elemTotals{}
 	elemsPos := make(map[uint64]int)
 
@@ -85,7 +96,7 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberO
 	for _, record := range records {
 		for k, v := range record {
 			vUint64 := uint64(v)
-			v2Uint64 := vUint64*vUint64
+			v2Uint64 := vUint64 * vUint64
 			if p, ok := elemsPos[k]; ok {
 				elementsTotals[p].sum += vUint64
 				elementsTotals[p].sum2 += v2Uint64
@@ -93,11 +104,11 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberO
 				elementsTotals[p].n++
 			} else {
 				elementsTotals = append(elementsTotals, elemTotals{
-					elemId: k,
-					sum: vUint64,
-					sum2: v2Uint64,
-					err: uint64((maxScore - v) * (maxScore - v)),
-					n: 1,
+					elemID: k,
+					sum:    vUint64,
+					sum2:   v2Uint64,
+					err:    uint64((maxScore - v) * (maxScore - v)),
+					n:      1,
 				})
 				elemsPos[k] = i
 				i++
@@ -105,11 +116,12 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberO
 		}
 	}
 
-	tr = &Tree {
-		maxDeep: maxDeep,
-		maxScore: maxScore,
+	tr = &Tree{
+		maxDeep:   maxDeep,
+		maxScore:  maxScore,
 		totalRecs: len(records),
-		tree: make(map[uint64]*tNode),
+		tree:      make(map[uint64]*tNode),
+		testMode:  false,
 	}
 
 	if len(elemsPos) < numberOfTrees {
@@ -120,27 +132,30 @@ func GetNewTree(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberO
 
 	i = 0
 	for element, pos := range elemsPos {
-		log.Debug("----->>>> Creating tree from:", element, i)
+		if i >= tr.numOfTrees {
+			return
+		}
+
+		log.Debug("----->>>> Building tree from:", element, i)
 		delete(elemsPos, element)
 		tr.tree[element] = tr.getTreeNode(element, elemsPos, elementsTotals, records, 1)
 		elemsPos[element] = pos
 
-		if i >= tr.numOfTrees {
-			return
-		}
 		i++
 	}
 
 	return
 }
 
+// GetBestRecommendation Using the classification of the elements from the
+// first values, this method process and returns a list of up to maxRecs items
+// IDs
 func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec []uint64) {
 	// Will store all the recomendations by level, as deeper as best
 	bestRecsByLevels := [][]uint64{}
 	secondaryByLevels := [][]*scoresClassifications{}
 
-	for elemId, tree := range tr.tree {
-		log.Debug("Studing tree:", elemId)
+	for elemID, tree := range tr.tree {
 		level := 0
 		for tree != nil {
 			if len(bestRecsByLevels) <= level {
@@ -150,8 +165,8 @@ func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec
 				bestRecsByLevels[level] = append(bestRecsByLevels[level], tree.value)
 			}
 
-			if score, classified := values[elemId]; classified {
-				if score >= tr.maxScore / 2 {
+			if score, classified := values[elemID]; classified {
+				if score >= tr.maxScore/2 {
 					if tree.bestRecL != nil {
 						secondaryByLevels[level] = append(secondaryByLevels[level], tree.bestRecL...)
 					}
@@ -172,44 +187,36 @@ func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec
 		}
 	}
 
-	log.Debug("Scores by levels:", bestRecsByLevels)
+	//log.Debug("Scores by levels:", bestRecsByLevels)
+	//log.Debug("Levels:", len(bestRecsByLevels))
 
 	recMap := make(map[uint64]bool)
-	log.Debug("Levels:", len(bestRecsByLevels))
-	for i := len(bestRecsByLevels)-1; i >= 0 && len(rec) < maxRecs; i-- {
+	for i := len(bestRecsByLevels) - 1; i >= 0 && len(rec) < maxRecs; i-- {
 		for _, elem := range bestRecsByLevels[i] {
-			if score, classified := values[elem]; !classified {
+			if _, classified := values[elem]; !classified || tr.testMode {
 				recMap[elem] = true
-			} else {
-				tr.errSqr += uint64(tr.maxScore - score) * uint64(tr.maxScore - score)
-				tr.errTotal++
-				log.Debug("Level:", i, "Classification:", score, "Distance:", tr.maxScore - score)
 			}
 		}
 	}
 
-	// Populate the list of recomended elements 
-	secondaryElemsLoop:
-	for i := len(bestRecsByLevels)-1; i >= 0 && len(rec) < maxRecs; i-- {
-		sort.Sort(ByClassif(secondaryByLevels[i]))
+	// Populate the list of recomended elements
+secondaryElemsLoop:
+	for i := len(bestRecsByLevels) - 1; i >= 0 && len(rec) < maxRecs; i-- {
+		sort.Sort(byClassif(secondaryByLevels[i]))
 
 		for _, elem := range secondaryByLevels[i] {
-			if score, classified := values[elem.elemId]; !classified {
-				recMap[elem.elemId] = true
+			if _, classified := values[elem.elemID]; !classified || tr.testMode {
+				recMap[elem.elemID] = true
 				if len(rec) >= maxRecs {
 					break secondaryElemsLoop
 				}
-			} else {
-				tr.errSqr += uint64(tr.maxScore - score) * uint64(tr.maxScore - score)
-				tr.errTotal++
-				log.Debug("Sec Level:", i, "Classification:", score, "Distance:", tr.maxScore - score)
 			}
 		}
 	}
 
 	i := 0
 	rec = make([]uint64, len(recMap))
-	for k, _ := range recMap {
+	for k := range recMap {
 		rec[i] = k
 		i++
 	}
@@ -217,13 +224,12 @@ func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec
 	return
 }
 
-func (tr *Tree) GetQuadraticLoss() float64 {
-	return math.Sqrt(float64(tr.errSqr) / float64(tr.errTotal))
+func (tr *Tree) setTestMode() {
+	tr.testMode = true
 }
 
 func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTotals []elemTotals, records []map[uint64]uint8, deep int) (tn *tNode) {
-	log.Debug("Records:", len(records))
-	tn = &tNode {
+	tn = &tNode{
 		value: fromElem,
 	}
 
@@ -233,10 +239,7 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 	// In case of this is the last node because of the max deep or that the
 	// set is not enought big, we will store all the list of pending movies
 	// on this node
-	lastNode := deep > tr.maxDeep || len(records) < tr.totalRecs / 10
-	if lastNode {
-		log.Debug("LAST NODE!!!")
-	}
+	lastNode := deep > tr.maxDeep || len(records) < tr.totalRecs/10
 
 	totals := make([]elemSums, len(elementsTotals))
 
@@ -246,7 +249,7 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 
 	for _, record := range records {
 		if v, ok := record[fromElem]; ok {
-			if v >= tr.maxScore / 2 {
+			if v >= tr.maxScore/2 {
 				likeRecords = append(likeRecords, record)
 			} else {
 				hateRecords = append(hateRecords, record)
@@ -257,9 +260,9 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 			for elem, pos := range elemsPos {
 				if j, isJ := record[elem]; isJ {
 					jUint64 := uint64(j)
-					j2Uint64 := jUint64*jUint64
+					j2Uint64 := jUint64 * jUint64
 
-					if v >= tr.maxScore / 2 {
+					if v >= tr.maxScore/2 {
 						totals[pos].sumL += jUint64
 						totals[pos].sum2L += j2Uint64
 						totals[pos].nL++
@@ -294,36 +297,36 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 	var scoreL, scoreH, scoreU float64
 	for _, pos := range elemsPos {
 		if totals[pos].nL > 0 {
-			scoreL = float64(totals[pos].sumL*totals[pos].sumL - totals[pos].sum2L) / float64(totals[pos].nL)
-			if lastNode && uint8(totals[pos].sumL / totals[pos].nL) > tr.maxScore / 2 {
+			scoreL = float64(totals[pos].sumL*totals[pos].sumL-totals[pos].sum2L) / float64(totals[pos].nL)
+			if lastNode && uint8(totals[pos].sumL/totals[pos].nL) > tr.maxScore/2 {
 				classifsL = append(classifsL, &scoresClassifications{
-					score: scoreL,
-					elemId: elementsTotals[pos].elemId,
-					avg: float64(totals[pos].sumL) / float64(totals[pos].nL),
+					score:  scoreL,
+					elemID: elementsTotals[pos].elemID,
+					avg:    float64(totals[pos].sumL) / float64(totals[pos].nL),
 				})
 			}
 		} else {
 			scoreL = 0
 		}
 		if totals[pos].nH > 0 {
-			scoreH = float64(totals[pos].sumH*totals[pos].sumH - totals[pos].sum2H) / float64(totals[pos].nH)
-			if lastNode && uint8(totals[pos].sumH / totals[pos].nH) > tr.maxScore / 2 {
+			scoreH = float64(totals[pos].sumH*totals[pos].sumH-totals[pos].sum2H) / float64(totals[pos].nH)
+			if lastNode && uint8(totals[pos].sumH/totals[pos].nH) > tr.maxScore/2 {
 				classifsD = append(classifsD, &scoresClassifications{
-					score: scoreH,
-					elemId: elementsTotals[pos].elemId,
-					avg: float64(totals[pos].sumH) / float64(totals[pos].nH),
+					score:  scoreH,
+					elemID: elementsTotals[pos].elemID,
+					avg:    float64(totals[pos].sumH) / float64(totals[pos].nH),
 				})
 			}
 		} else {
 			scoreH = 0
 		}
 		if totals[pos].nU > 0 {
-			scoreU = float64(totals[pos].sumU*totals[pos].sumU - totals[pos].sum2U) / float64(totals[pos].nU)
-			if lastNode && uint8(totals[pos].sumU / totals[pos].nU) > tr.maxScore / 2 {
+			scoreU = float64(totals[pos].sumU*totals[pos].sumU-totals[pos].sum2U) / float64(totals[pos].nU)
+			if lastNode && uint8(totals[pos].sumU/totals[pos].nU) > tr.maxScore/2 {
 				classifsU = append(classifsU, &scoresClassifications{
-					score: scoreU,
-					elemId: elementsTotals[pos].elemId,
-					avg: float64(totals[pos].sumU) / float64(totals[pos].nU),
+					score:  scoreU,
+					elemID: elementsTotals[pos].elemID,
+					avg:    float64(totals[pos].sumU) / float64(totals[pos].nU),
 				})
 			}
 		} else {
@@ -332,58 +335,58 @@ func (tr *Tree) getTreeNode(fromElem uint64, elemsPos map[uint64]int, elementsTo
 
 		if maxScoreL < scoreL {
 			maxScoreL = scoreL
-			maxLike = elementsTotals[pos].elemId
+			maxLike = elementsTotals[pos].elemID
 		}
 		if maxScoreH < scoreH {
 			maxScoreH = scoreH
-			maxHate = elementsTotals[pos].elemId
+			maxHate = elementsTotals[pos].elemID
 		}
 		if maxScoreU < scoreU {
 			maxScoreU = scoreU
-			maxUnknown = elementsTotals[pos].elemId
+			maxUnknown = elementsTotals[pos].elemID
 		}
 	}
 
 	if lastNode {
-		sort.Sort(ByClassif(classifsL))
-		sort.Sort(ByClassif(classifsD))
-		sort.Sort(ByClassif(classifsU))
+		sort.Sort(byClassif(classifsL))
+		sort.Sort(byClassif(classifsD))
+		sort.Sort(byClassif(classifsU))
 
-		if len(classifsL) > MAX_ELEMS {
-			tn.bestRecL = classifsL[:MAX_ELEMS]
+		if len(classifsL) > maxSecondaryElements {
+			tn.bestRecL = classifsL[:maxSecondaryElements]
 		} else {
 			tn.bestRecL = classifsL
 		}
-		if len(classifsD) > MAX_ELEMS {
-			tn.bestRecD = classifsD[:MAX_ELEMS]
+		if len(classifsD) > maxSecondaryElements {
+			tn.bestRecD = classifsD[:maxSecondaryElements]
 		} else {
 			tn.bestRecD = classifsD
 		}
-		if len(classifsU) > MAX_ELEMS {
-			tn.bestRecU = classifsU[:MAX_ELEMS]
+		if len(classifsU) > maxSecondaryElements {
+			tn.bestRecU = classifsU[:maxSecondaryElements]
 		} else {
 			tn.bestRecU = classifsU
 		}
 	} else {
-		log.Debug("MaxsL:", maxScoreL, maxLike, "Avg:", float64(totals[elemsPos[maxLike]].sumL) / float64(totals[elemsPos[maxLike]].nL), "Deep:", deep, totals[elemsPos[maxLike]])
-		log.Debug("MaxsH:", maxScoreH, maxHate, "Avg:", float64(totals[elemsPos[maxHate]].sumH) / float64(totals[elemsPos[maxHate]].nH), "Deep:", deep, totals[elemsPos[maxLike]])
-		log.Debug("MaxsU:", maxScoreU, maxUnknown, "Avg:", float64(totals[elemsPos[maxUnknown]].sumU) / float64(totals[elemsPos[maxUnknown]].nU), "Deep:", deep, totals[elemsPos[maxLike]])
+		/*log.Debug("MaxsL:", maxScoreL, maxLike, "Avg:", float64(totals[elemsPos[maxLike]].sumL)/float64(totals[elemsPos[maxLike]].nL), "Deep:", deep, totals[elemsPos[maxLike]])
+		log.Debug("MaxsH:", maxScoreH, maxHate, "Avg:", float64(totals[elemsPos[maxHate]].sumH)/float64(totals[elemsPos[maxHate]].nH), "Deep:", deep, totals[elemsPos[maxLike]])
+		log.Debug("MaxsU:", maxScoreU, maxUnknown, "Avg:", float64(totals[elemsPos[maxUnknown]].sumU)/float64(totals[elemsPos[maxUnknown]].nU), "Deep:", deep, totals[elemsPos[maxLike]])*/
 
-		if totals[elemsPos[maxLike]].nL > 0 && totals[elemsPos[maxLike]].sumL / totals[elemsPos[maxLike]].nL >= uint64(tr.maxScore / 2 + 1) {
+		if totals[elemsPos[maxLike]].nL > 0 && totals[elemsPos[maxLike]].sumL/totals[elemsPos[maxLike]].nL >= uint64(tr.maxScore/2+1) {
 			pos = elemsPos[maxLike]
 			delete(elemsPos, maxLike)
 			tn.like = tr.getTreeNode(maxLike, elemsPos, elementsTotals, likeRecords, deep+1)
 			elemsPos[maxLike] = pos
 		}
 
-		if totals[elemsPos[maxLike]].nH > 0 && totals[elemsPos[maxHate]].sumH / totals[elemsPos[maxLike]].nH >= uint64(tr.maxScore / 2 + 1) {
+		if totals[elemsPos[maxLike]].nH > 0 && totals[elemsPos[maxHate]].sumH/totals[elemsPos[maxLike]].nH >= uint64(tr.maxScore/2+1) {
 			pos = elemsPos[maxHate]
 			delete(elemsPos, maxHate)
 			tn.dislike = tr.getTreeNode(maxHate, elemsPos, elementsTotals, hateRecords, deep+1)
 			elemsPos[maxHate] = pos
 		}
 
-		if totals[elemsPos[maxLike]].nU > 0 && totals[elemsPos[maxUnknown]].sumU / totals[elemsPos[maxLike]].nU >= uint64(tr.maxScore / 2 + 1) {
+		if totals[elemsPos[maxLike]].nU > 0 && totals[elemsPos[maxUnknown]].sumU/totals[elemsPos[maxLike]].nU >= uint64(tr.maxScore/2+1) {
 			pos = elemsPos[maxUnknown]
 			delete(elemsPos, maxUnknown)
 			tn.unknown = tr.getTreeNode(maxUnknown, elemsPos, elementsTotals, unknownRecords, deep+1)

@@ -1,15 +1,15 @@
 package recommender
 
 import (
-	"os"
-	"encoding/json"
-	"strconv"
-	"runtime"
 	"bufio"
+	"encoding/json"
 	"github.com/alonsovidales/pit/log"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
-	"strings"
 )
 
 const (
@@ -41,7 +41,7 @@ func TestCollabInsertion(t *testing.T) {
 
 	memStats := new(runtime.MemStats)
 	runtime.ReadMemStats(memStats)
-	if maxMemMB * 1000000 < memStats.Alloc {
+	if maxMemMB*1000000 < memStats.Alloc {
 		t.Error("Garbage collector not working propertly, max memory setted to:", maxMemMB, "but:", memStats.Alloc, "bytes used")
 	}
 }
@@ -55,7 +55,7 @@ func Readln(r *bufio.Reader) (string, error) {
 		ln = append(ln, line...)
 	}
 
-	return string(ln),err
+	return string(ln), err
 }
 
 func parseLine(line string) (recordId uint64, values map[uint64]float64) {
