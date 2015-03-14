@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/alonsovidales/pit/log"
 	"os"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -13,14 +14,29 @@ import (
 )
 
 const (
-	TESTSET = "training_set/training_set.info"
+	TESTSET = "../test_training_set/training_set.info"
 )
 
-func TestCollabInsertion(t *testing.T) {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	maxMemMB := uint64(100)
+func TestCompression(t *testing.T) {
+	aux := "This is a test..."
+	rc := &Recommender{}
+	if string(rc.uncompress(rc.compress([]byte(aux)))) != aux {
+		t.Error("Problem trying to compress and uncompress data")
+	}
+}
 
-	rc := Init(maxMemMB)
+func TestRecommenderLoadNoBackup(t *testing.T) {
+	sh := NewShard("/testing", "test_collab_insertion_no_baackup", 10, 5)
+	if sh.LoadBackup() {
+		t.Error("The method LoadBackup can't return true when a backup doesn't exist")
+	}
+}
+
+func TestRecommenderSaveLoad(t *testing.T) {
+	maxClassifications := uint64(1000000)
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	sh := NewShard("/testing", "test_collab_insertion", maxClassifications, 5)
 
 	f, err := os.Open(TESTSET)
 	if err != nil {
@@ -30,20 +46,67 @@ func TestCollabInsertion(t *testing.T) {
 	r := bufio.NewReader(f)
 	s, e := Readln(r)
 	i := 0
-	for e == nil && i < 10000 {
+	for e == nil && i < 100000 {
 		s, e = Readln(r)
 		recId, scores := parseLine(s)
-		rc.AddRecord(recId, scores)
+		sh.AddRecord(recId, scores)
 		i++
+		if i%1000 == 0 {
+			log.Debug("Lines processed:", i)
+		}
 	}
 
-	time.Sleep(100 * time.Second)
+	time.Sleep(time.Second)
 
-	memStats := new(runtime.MemStats)
-	runtime.ReadMemStats(memStats)
-	if maxMemMB*1000000 < memStats.Alloc {
-		t.Error("Garbage collector not working propertly, max memory setted to:", maxMemMB, "but:", memStats.Alloc, "bytes used")
+	if sh.totalClassif > maxClassifications {
+		t.Error(
+			"Problem with the garbage collection, the total number of stored stores are:",
+			sh.totalClassif, "and the max defined boundary is:", maxClassifications)
 	}
+
+	if sh.status != STATUS_SARTING {
+		t.Error("The expectede status was:", STATUS_SARTING, "but the actual one is:", sh.status)
+	}
+
+	log.Debug("Processing tree...")
+	sh.RecalculateTree()
+
+	if sh.status != STATUS_ACTIVE {
+		t.Error("The expectede status was:", STATUS_ACTIVE, "but the actual one is:", sh.status)
+	}
+
+	s, e = Readln(r)
+	recId, scores := parseLine(s)
+	recomendationsBef := sh.CalcScores(recId, scores, 10)
+
+	prevScores := sh.totalClassif
+	sh.SaveBackup()
+
+	sh = NewShard("/testing", "test_collab_insertion", maxClassifications, 5)
+	sh.RecalculateTree()
+
+	if sh.status != STATUS_NORECORDS {
+		t.Error("The expectede status was:", STATUS_NORECORDS, "but the actual one is:", sh.status)
+	}
+
+	sh.LoadBackup()
+
+	sh.RecalculateTree()
+
+	if prevScores != sh.totalClassif {
+		t.Error(
+			"Before store a backup the number of records was:", prevScores,
+			"but after load the backup is:", sh.totalClassif)
+	}
+
+	recomendationsAfter := sh.CalcScores(recId, scores, 10)
+	if !reflect.DeepEqual(recomendationsBef, recomendationsAfter) {
+		log.Error(
+			"The recomended elements before save&load the backup was:", recomendationsBef,
+			"but after are:", recomendationsAfter)
+	}
+
+	log.Debug("Classifications:", sh.maxClassif)
 }
 
 func Readln(r *bufio.Reader) (string, error) {
@@ -58,17 +121,17 @@ func Readln(r *bufio.Reader) (string, error) {
 	return string(ln), err
 }
 
-func parseLine(line string) (recordId uint64, values map[uint64]float64) {
+func parseLine(line string) (recordId uint64, values map[uint64]uint8) {
 	parts := strings.SplitN(line, ":", 2)
 	recordIdOrig, _ := strconv.ParseInt(parts[0], 10, 64)
 	recordId = uint64(recordIdOrig)
 
-	valuesAux := make(map[string]float64)
+	valuesAux := make(map[string]uint8)
 	if len(parts) < 2 {
 		log.Fatal(line)
 	}
 	json.Unmarshal([]byte(parts[1]), &valuesAux)
-	values = make(map[uint64]float64)
+	values = make(map[uint64]uint8)
 	for k, v := range valuesAux {
 		kI, _ := strconv.ParseInt(k, 10, 64)
 		values[uint64(kI)] = v
