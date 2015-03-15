@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/alonsovidales/pit/log"
 	"os"
-	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -26,7 +25,7 @@ func TestCompression(t *testing.T) {
 }
 
 func TestRecommenderLoadNoBackup(t *testing.T) {
-	sh := NewShard("/testing", "test_collab_insertion_no_baackup", 10, 5)
+	sh := NewShard("/testing", "test_collab_insertion_no_baackup", 10, 5, "eu-west-1")
 	if sh.LoadBackup() {
 		t.Error("The method LoadBackup can't return true when a backup doesn't exist")
 	}
@@ -36,7 +35,7 @@ func TestRecommenderSaveLoad(t *testing.T) {
 	maxClassifications := uint64(1000000)
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	sh := NewShard("/testing", "test_collab_insertion", maxClassifications, 5)
+	sh := NewShard("/testing", "test_collab_insertion", maxClassifications, 5, "eu-west-1")
 
 	f, err := os.Open(TESTSET)
 	if err != nil {
@@ -78,11 +77,14 @@ func TestRecommenderSaveLoad(t *testing.T) {
 	s, e = Readln(r)
 	recId, scores := parseLine(s)
 	recomendationsBef := sh.CalcScores(recId, scores, 10)
+	if len(recomendationsBef) != 10 {
+		t.Error("The expected recommendations was 10, but:", len(recomendationsBef), "obtained.")
+	}
 
 	prevScores := sh.totalClassif
 	sh.SaveBackup()
 
-	sh = NewShard("/testing", "test_collab_insertion", maxClassifications, 5)
+	sh = NewShard("/testing", "test_collab_insertion", maxClassifications, 5, "eu-west-1")
 	sh.RecalculateTree()
 
 	if sh.status != STATUS_NORECORDS {
@@ -100,10 +102,8 @@ func TestRecommenderSaveLoad(t *testing.T) {
 	}
 
 	recomendationsAfter := sh.CalcScores(recId, scores, 10)
-	if !reflect.DeepEqual(recomendationsBef, recomendationsAfter) {
-		log.Error(
-			"The recomended elements before save&load the backup was:", recomendationsBef,
-			"but after are:", recomendationsAfter)
+	if len(recomendationsAfter) != 10 {
+		t.Error("The expected recommendations was 10, but:", len(recomendationsAfter), "obtained.")
 	}
 
 	log.Debug("Classifications:", sh.maxClassif)

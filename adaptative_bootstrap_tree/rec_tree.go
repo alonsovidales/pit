@@ -191,7 +191,7 @@ func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec
 	//log.Debug("Levels:", len(bestRecsByLevels))
 
 	recMap := make(map[uint64]bool)
-	for i := len(bestRecsByLevels) - 1; i >= 0 && len(rec) < maxRecs; i-- {
+	for i := len(bestRecsByLevels) - 1; i >= 0 && len(recMap) < maxRecs; i-- {
 		for _, elem := range bestRecsByLevels[i] {
 			if _, classified := values[elem]; !classified || tr.testMode {
 				recMap[elem] = true
@@ -201,13 +201,13 @@ func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec
 
 	// Populate the list of recomended elements
 secondaryElemsLoop:
-	for i := len(bestRecsByLevels) - 1; i >= 0 && len(rec) < maxRecs; i-- {
+	for i := len(bestRecsByLevels) - 1; i >= 0 && len(recMap) < maxRecs; i-- {
 		sort.Sort(byClassif(secondaryByLevels[i]))
 
 		for _, elem := range secondaryByLevels[i] {
 			if _, classified := values[elem.elemID]; !classified || tr.testMode {
 				recMap[elem.elemID] = true
-				if len(rec) >= maxRecs {
+				if len(recMap) >= maxRecs {
 					break secondaryElemsLoop
 				}
 			}

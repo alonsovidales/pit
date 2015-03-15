@@ -59,6 +59,7 @@ type Recommender struct {
 	identifier string
 	maxScore   uint8
 	s3Path     string
+	s3Region   aws.Region
 
 	maxClassif   uint64
 	totalClassif uint64
@@ -74,9 +75,7 @@ type Recommender struct {
 	mutex sync.Mutex
 }
 
-var S3Zone = aws.EUWest
-
-func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint8) (rc *Recommender) {
+func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint8, s3Region string) (rc *Recommender) {
 	log.Info("Starting shard:", identifier, "With max number of elements:", maxClassif)
 
 	rc = &Recommender{
@@ -87,6 +86,7 @@ func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint
 		records:      make(map[uint64]*score),
 		status:       STATUS_SARTING,
 		s3Path:       s3Path,
+		s3Region:     aws.Regions[s3Region],
 	}
 
 	go rc.checkAndExpire()
@@ -100,12 +100,12 @@ func (rc *Recommender) GetStatus() string {
 
 func (rc *Recommender) CalcScores(recID uint64, scores map[uint64]uint8, maxToReturn int) (result []uint64) {
 	if rc.recTree == nil {
+		log.Debug("No tree:'(")
 		return
 	}
 
-	log.Debug("Calculating:", recID, "Scores:", scores)
 	rc.AddRecord(recID, scores)
-	rc.recTree.GetBestRecommendation(scores, maxToReturn)
+	result = rc.recTree.GetBestRecommendation(scores, maxToReturn)
 
 	return
 }
@@ -172,7 +172,7 @@ func (rc *Recommender) LoadBackup() (success bool) {
 		return false
 	}
 
-	s := s3.New(auth, S3Zone)
+	s := s3.New(auth, rc.s3Region)
 	bucket := s.Bucket(S3BUCKET)
 
 	jsonData, err := bucket.Get(rc.getS3Path())
@@ -224,7 +224,7 @@ func (rc *Recommender) SaveBackup() {
 		return
 	}
 
-	s := s3.New(auth, S3Zone)
+	s := s3.New(auth, rc.s3Region)
 	bucket := s.Bucket(S3BUCKET)
 
 	err = bucket.Put(
