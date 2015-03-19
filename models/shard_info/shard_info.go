@@ -2,7 +2,28 @@ package shardinfo
 
 import (
 	"github.com/goamz/goamz/dynamodb"
+	"github.com/goamz/goamz/aws"
+	"github.com/alonsovidales/pit/log"
+	"errors"
+	"fmt"
+	"encoding/json"
+	"time"
+	"sync"
 )
+
+const (
+	cTable             = "rec_shards"
+	cPrimKey           = "groupId"
+	cDefaultWRCapacity = 5
+	cTTL               = 5
+
+	cMaxHoursToStore = 168 // A week
+	cUpdatePeriod    = 5
+	cShardTTL        = 5
+)
+
+var CErrGroupNotFound = errors.New("Group not found")
+var CErrAuth          = errors.New("Authentication problem")
 
 type GroupInfoInt interface {
 	IncReqSec() (reqs uint64)
@@ -12,19 +33,17 @@ type GroupInfoInt interface {
 	IsMaster() bool
 	GetLimits() (maxElements uint64, maxReqSec uint64, maxInsertReqSec uint64)
 	GetNeighboursshards() (maxElements uint64, maxReqSec uint64, maxInsertReqSec uint64)
-}
-
-type Stats struct {
-	reqHour []uint64
-	reqMin  []uint64
-	reqSec  uint64
+	AddShards(numOfShards int)
 }
 
 type shard struct {
 	addr   string
 	port   int
 	lastTs uint32
-	stats  *Stats
+
+	reqHour []uint64
+	reqMin  []uint64
+	reqSec  uint64
 }
 
 type GroupInfo struct {
@@ -42,69 +61,124 @@ type GroupInfo struct {
 	shards [][2]*shard
 }
 
-const (
-	cMaxHoursToStore = 168 // A week
-	cUpdatePeriod    = 5
-	cShardTTL        = 5
-
-	CErrGroupNotFound = errors.New("Group not found")
-	CErrAuth          = errors.New("Authentication problem")
-)
-
-var conn *dynamodb.Server
-var shards = make(map[string]map[string]*GroupInfo)
-
-func GetNewGroup(prefix string, awsRegion string) (si *GroupInfo) {
-	si = &GroupInfo{}
+type ModelInt interface {
+	GetGroupById(userId, secret, groupId string) (gr *GroupInfo)
+	AddGroup(userId, secret, groupId string, maxElements, maxReqSec, maxInsertReqSec uint64) (gr *GroupInfo)
 }
 
-func tryToAcquireShard() {
-	// Suscribe instance on shard
-	// Wait at least T*3
-	// Check if we are the owners of this shard
-	// In that case, return true
+type Model struct {
+	ModelInt
+
+	// groups by user ID and Group ID
+	groups map[string]map[string]*GroupInfo
+	table *dynamodb.Table
+	tableName string
+	mutex sync.Mutex
+	conn *dynamodb.Server
 }
 
-// Returns the list of shards for a user group
-func GetShardsByUserGroup(userID, secret, groupId string) (group *GroupInfo, err error) {
-	if shards, auth := shards[getKey(userID, secret)]; auth {
-		if group, issetGroup := shards[groupId]; group {
-			return group, nil
+func GetModel(prefix string, awsRegion string) (md *Model) {
+	if awsAuth, err := aws.EnvAuth(); err == nil {
+		md = &Model{
+			tableName: fmt.Sprintf("%s_%s", prefix, cTable),
+			groups: make(map[string]map[string]*GroupInfo),
+			conn: &dynamodb.Server{
+				Auth:   awsAuth,
+				Region: aws.Regions[awsRegion],
+			},
+		}
+		md.initTable()
+
+		md.updateInfo()
+		go func () {
+			for {
+				md.updateInfo()
+
+				time.Sleep(time.Second * cUpdatePeriod)
+			}
+		}()
+	} else {
+		log.Error("Problem trying to connect with DynamoDB, Error:", err)
+		return
+	}
+
+	return
+}
+
+func (md *Model) delTable() {
+	if tableDesc, err := md.conn.DescribeTable(md.tableName); err == nil {
+		if _, err = md.conn.DeleteTable(*tableDesc); err != nil {
+			log.Error("Can't remove Dynamo table:", md.tableName, "Error:", err)
+		}
+	} else {
+		log.Error("Can't remove Dynamo table:", md.tableName, "Error:", err)
+	}
+}
+
+func (md *Model) updateInfo() {
+	// TODO Dump local info
+	var groups []*GroupInfo
+
+	log.Debug("Updating grups")
+	if rows, err := md.table.Scan(nil); err == nil {
+		groups = make([]*GroupInfo, len(rows))
+		for i, row := range rows {
+			if err := json.Unmarshal([]byte(row["info"].Value), &groups[i]); err != nil {
+				log.Error("The returned data from Dynamo DB for the shards info can't be unmarshalled, Error:", err)
+			}
+		}
+	} else {
+		log.Error("Problem trying to get the list of shards from Dynamo DB, Error:", err)
+	}
+
+	newGroups := make(map[string]map[string]*GroupInfo)
+	for _, gr := range groups {
+		if _, ok := md.groups[gr.userId]; ok {
+			md.groups[gr.userId][gr.groupId] = gr
 		} else {
-			return nil, CErrGroupNotFound
+			md.groups[gr.userId] = map[string]*GroupInfo {
+				gr.groupId: gr,
+			}
 		}
 	}
 
-	return nil, CErrAuth
+	md.mutex.Lock()
+	md.groups = newGroups
+	md.mutex.Unlock()
 }
 
-// StartCollector Collects each cUpdatePeriod seconds the data from DynamoDB about the shards, and removes the expired
-func StartCollector(awsRegion string) {
-	region := aws.Regions[awsRegion]
-	for {
-		conn := getConn(region)
+func (md *Model) initTable() {
+	pKey := dynamodb.PrimaryKey{dynamodb.NewStringAttribute(cPrimKey, ""), nil}
+	md.table = md.conn.NewTable(md.tableName, pKey)
+	log.Debug("Table:", md.table, md.tableName, cPrimKey)
 
-		// Update data from Dynamo
-		// Check the TTLs for all the shards and remove the expired shards
-		// Try to adquire as many shads as we can and where we are not part of the shards
-
-		time.Sleep(time.Second * cUpdatePeriod)
-	}
-}
-
-func getKey(userID, secret string) string {
-	return userID + secret
-}
-
-func getConn() *dynamodb.Server {
-	if conn == nil {
-		awsAuth, err := aws.EnvAuth()
-		if err != nil {
-			logger.Fatal("can't do log-in in AWS:", err)
+	res, err := md.table.DescribeTable()
+	if err != nil {
+		log.Info("Creating a new table on DynamoDB:", md.tableName)
+		td := dynamodb.TableDescriptionT{
+			TableName: md.tableName,
+			AttributeDefinitions: []dynamodb.AttributeDefinitionT{
+				dynamodb.AttributeDefinitionT{cPrimKey, "S"},
+			},
+			KeySchema: []dynamodb.KeySchemaT{
+				dynamodb.KeySchemaT{cPrimKey, "HASH"},
+			},
+			ProvisionedThroughput: dynamodb.ProvisionedThroughputT{
+				ReadCapacityUnits:  cDefaultWRCapacity,
+				WriteCapacityUnits: cDefaultWRCapacity,
+			},
 		}
 
-		conn = dynamodb.New(awsAuth, region)
+		if _, err := md.conn.CreateTable(td); err != nil {
+			log.Error("Error trying to create a table on Dynamo DB, table:", md.tableName, "Error:", err)
+		}
 	}
 
-	return conn
+	for "ACTIVE" != res.TableStatus {
+		if res, err = md.table.DescribeTable(); err != nil {
+			log.Error("Can't describe Dynamo DB instances table, Error:", err)
+		}
+		log.Debug("Waiting for active table, current status:", res.TableStatus)
+		time.Sleep(time.Second)
+	}
 }

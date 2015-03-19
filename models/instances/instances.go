@@ -39,6 +39,7 @@ func InitAndKeepAlive(prefix string, awsRegion string) (im *InstancesModel) {
 		}
 		im.initTable()
 
+		im.updateInstances()
 		go func() {
 			for {
 				im.updateInstances()
