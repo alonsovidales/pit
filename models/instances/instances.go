@@ -18,13 +18,40 @@ const (
 	cTTL               = 5
 )
 
+type InstancesModelInt interface {
+	GetTotalInstances() int
+	GetInstances() (instances []string)
+}
+
 type InstancesModel struct {
+	InstancesModelInt
+
 	prefix         string
 	table          *dynamodb.Table
 	instancesAlive []string
 	conn           *dynamodb.Server
 	tableName      string
 	mutex          sync.Mutex
+}
+
+var hostName string
+
+func init() {
+	var err error
+	hostName, err = os.Hostname()
+	if err != nil {
+		log.Fatal("Can't get the hostname of the local machine:", err)
+	}
+}
+
+func GetHostName() string {
+	return hostName
+}
+
+// SetHostname Used for testing proposals only, force the host name to be the
+// one specified
+func SetHostname(hn string) {
+	hostName = hn
 }
 
 func InitAndKeepAlive(prefix string, awsRegion string) (im *InstancesModel) {
@@ -52,6 +79,10 @@ func InitAndKeepAlive(prefix string, awsRegion string) (im *InstancesModel) {
 	}
 
 	return
+}
+
+func (im *InstancesModel) GetTotalInstances() int {
+	return len(im.instancesAlive)
 }
 
 func (im *InstancesModel) GetInstances() (instances []string) {
@@ -86,11 +117,6 @@ func (im *InstancesModel) registerHostName(hostName string) {
 }
 
 func (im *InstancesModel) updateInstances() {
-	hostName, err := os.Hostname()
-	if err != nil {
-		log.Fatal("Can't get the hostname of the local machine:", err)
-	}
-
 	im.registerHostName(hostName)
 
 	if rows, err := im.table.Scan(nil); err == nil {

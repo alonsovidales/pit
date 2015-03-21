@@ -1,12 +1,12 @@
 package shardinfo
 
 import (
-	"os"
 	"github.com/alonsovidales/pit/log"
+	"github.com/alonsovidales/pit/models/instances"
+	"os"
 	"reflect"
 	"testing"
 	"time"
-	"github.com/alonsovidales/pit/models/instances"
 )
 
 var md *Model
@@ -26,19 +26,19 @@ func TestAddGroupPersistAndRead(t *testing.T) {
 	var err error
 
 	originalGroups := make([]*GroupInfo, 3)
-	originalGroups[0], err = md.AddGroup("userId", "secret", "groupId", 1, 1000000, 100, 1000)
+	originalGroups[0], err = md.AddGroup("userId", "secret", "groupId", 1, 1000000, 100, 1000, 5)
 	if err != nil {
 		t.Error("Problem trying to insert a new group, Error:", err)
 		t.Fail()
 	}
 
-	originalGroups[1], err = md.AddGroup("userId1", "secret1", "groupId1", 2, 1000400, 110, 160)
+	originalGroups[1], err = md.AddGroup("userId1", "secret1", "groupId1", 2, 1000400, 110, 160, 6)
 	if err != nil {
 		t.Error("Problem trying to insert a new group, Error:", err)
 		t.Fail()
 	}
 
-	originalGroups[2], err = md.AddGroup("userId2", "secret2", "groupId2", 3, 100000, 300, 1500)
+	originalGroups[2], err = md.AddGroup("userId2", "secret2", "groupId2", 3, 100000, 300, 1500, 10)
 	if err != nil {
 		t.Error("Problem trying to insert a new group, Error:", err)
 		t.Fail()
@@ -61,7 +61,7 @@ func TestAddGroupPersistAndRead(t *testing.T) {
 		t.Error("Trying to get a group using unvalid credentials, but the system didn't return the corresponding error, error returned:", err)
 	}
 
-	_, err = md.AddGroup("userId", "secret", "groupId", 3, 1000000, 100, 1000)
+	_, err = md.AddGroup("userId", "secret", "groupId", 3, 1000000, 100, 1000, 10)
 	if err != CErrGroupInUse {
 		t.Error("Trying to add a duplicated group ID, but the system didn't return the corresponding error, error returned:", err)
 	}
@@ -80,7 +80,7 @@ func TestAddGroupPersistAndRead(t *testing.T) {
 }
 
 func TestAcquireShard(t *testing.T) {
-	gr, err := md.AddGroup("userId2", "secret2", "groupId22", 2, 100000, 300, 1500)
+	gr, err := md.AddGroup("userId2", "secret2", "groupId22", 2, 100000, 300, 1500, 3)
 	log.Debug("Group:", gr)
 	if err != nil {
 		t.Error("Problem trying to insert a new group, Error:", err)
@@ -104,6 +104,13 @@ func TestAcquireShard(t *testing.T) {
 	adquired, err = gr.AcquireShard()
 	if !adquired || err != nil {
 		t.Error("The system couldn't acquire a shard in a group where still is a shard free, Error:", err)
+	}
+
+	md.ReleaseAllAdquiredShards()
+
+	adquired, err = gr.AcquireShard()
+	if !adquired || err != nil {
+		t.Error("The system couldn't acquire a shard in a group where still is a shard free because it was previously released, Error:", err)
 	}
 
 	instances.SetHostname("testHn1")

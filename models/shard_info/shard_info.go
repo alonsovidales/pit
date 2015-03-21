@@ -1,15 +1,15 @@
 package shardinfo
 
 import (
-	"github.com/goamz/goamz/dynamodb"
-	"github.com/goamz/goamz/aws"
-	"github.com/alonsovidales/pit/log"
-	"github.com/alonsovidales/pit/models/instances"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"encoding/json"
-	"time"
+	"github.com/alonsovidales/pit/log"
+	"github.com/alonsovidales/pit/models/instances"
+	"github.com/goamz/goamz/aws"
+	"github.com/goamz/goamz/dynamodb"
 	"sync"
+	"time"
 )
 
 const (
@@ -24,14 +24,15 @@ const (
 )
 
 var CErrGroupUserNotFound = errors.New("User not found")
-var CErrGroupInUse        = errors.New("Group ID in use")
-var CErrGroupNotFound     = errors.New("Group not found")
-var CErrAuth              = errors.New("Authentication problem")
-var CErrMaxShardsByGroup  = errors.New("Max number of shards for this group reached")
-var CSharPrevOwnedGroup   = errors.New("This instance yet owns a shard on this group")
+var CErrGroupInUse = errors.New("Group ID in use")
+var CErrGroupNotFound = errors.New("Group not found")
+var CErrAuth = errors.New("Authentication problem")
+var CErrMaxShardsByGroup = errors.New("Max number of shards for this group reached")
+var CSharPrevOwnedGroup = errors.New("This instance yet owns a shard on this group")
 
 type GroupInfoInt interface {
 	AcquireShard() (adquired bool, err error)
+	ReleaseShard()
 }
 
 type Shard struct {
@@ -40,7 +41,7 @@ type Shard struct {
 
 	ReqHour []uint64 `json:"reqs_hour"`
 	ReqMin  []uint64 `json:"reqs_min"`
-	ReqSec  uint64 `json:"reqs_sec"`
+	ReqSec  uint64   `json:"reqs_sec"`
 }
 
 type GroupInfo struct {
@@ -50,12 +51,14 @@ type GroupInfo struct {
 	Secret  string `json:"secret"`
 	GroupId string `json:"group_id"`
 
+	// MaxScore The max score for the group elements
+	MaxScore uint8 `json:"tot_shards"`
 	// NumShards Total number of shards by this group
-	NumShards       int `json:"tot_shards"`
+	NumShards int `json:"tot_shards"`
 	// MaxElements Total number of elements allocated by shard
-	MaxElements     uint64 `json:"max_elems"`
+	MaxElements uint64 `json:"max_elems"`
 	// MaxReqSec Max number of requests / sec by shard
-	MaxReqSec       uint64 `json:"max_req_sec"`
+	MaxReqSec uint64 `json:"max_req_sec"`
 	// MaxInsertReqSec Max number of insert requests by shard
 	MaxInsertReqSec uint64 `json:"max_insert_serq"`
 
@@ -63,32 +66,37 @@ type GroupInfo struct {
 	// shard, and the value the shard
 	Shards map[string]*Shard
 
+	md *Model
+
 	adquiredInGroup bool
 
 	table *dynamodb.Table
 }
 
 type ModelInt interface {
+	GetAllGroups() map[string]map[string]*GroupInfo
 	GetGroupById(userId, secret, groupId string) (gr *GroupInfo, err error)
-	AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64) (gr *GroupInfo, err error)
+	AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, err error)
+	ReleaseAllAdquiredShards()
+	GetTotalNumberOfShards() (tot int)
 }
 
 type Model struct {
 	ModelInt
 
 	// groups by user ID and Group ID
-	groups map[string]map[string]*GroupInfo
-	table *dynamodb.Table
+	groups    map[string]map[string]*GroupInfo
+	table     *dynamodb.Table
 	tableName string
-	mutex sync.Mutex
-	conn *dynamodb.Server
+	mutex     sync.Mutex
+	conn      *dynamodb.Server
 }
 
-func GetModel(prefix string, awsRegion string) (md *Model) {
+func GetModel(prefix, awsRegion string) (md *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
 		md = &Model{
 			tableName: fmt.Sprintf("%s_%s", prefix, cTable),
-			groups: make(map[string]map[string]*GroupInfo),
+			groups:    make(map[string]map[string]*GroupInfo),
 			conn: &dynamodb.Server{
 				Auth:   awsAuth,
 				Region: aws.Regions[awsRegion],
@@ -97,7 +105,7 @@ func GetModel(prefix string, awsRegion string) (md *Model) {
 		md.initTable()
 
 		md.updateInfo()
-		go func () {
+		go func() {
 			for {
 				md.updateInfo()
 
@@ -110,6 +118,22 @@ func GetModel(prefix string, awsRegion string) (md *Model) {
 	}
 
 	return
+}
+
+func (md *Model) GetTotalNumberOfShards() (tot int) {
+	md.mutex.Lock()
+	for _, groups := range md.groups {
+		for _, group := range groups {
+			tot += group.NumShards
+		}
+	}
+	md.mutex.Unlock()
+
+	return
+}
+
+func (md *Model) GetAllGroups() map[string]map[string]*GroupInfo {
+	return md.groups
 }
 
 func (md *Model) GetGroupById(userId, secret, groupId string) (gr *GroupInfo, err error) {
@@ -128,25 +152,28 @@ func (md *Model) GetGroupById(userId, secret, groupId string) (gr *GroupInfo, er
 	return nil, CErrGroupUserNotFound
 }
 
-func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64) (gr *GroupInfo, err error) {
+func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, err error) {
 	if userGroups, ugOk := md.groups[userId]; ugOk {
 		if group, grOk := userGroups[groupId]; grOk {
 			return group, CErrGroupInUse
 		}
 	}
 
-	gr = &GroupInfo {
-		UserId: userId,
-		Secret: secret,
+	gr = &GroupInfo{
+		UserId:  userId,
+		Secret:  secret,
 		GroupId: groupId,
 
 		NumShards: numShards,
+		MaxScore:  maxScore,
 
-		MaxElements: maxElements,
-		MaxReqSec: maxReqSec,
+		MaxElements:     maxElements,
+		MaxReqSec:       maxReqSec,
 		MaxInsertReqSec: maxInsertReqSec,
 
 		Shards: make(map[string]*Shard),
+
+		md: md,
 
 		table: md.table,
 	}
@@ -155,7 +182,7 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 	if userGroups, ugOk := md.groups[userId]; ugOk {
 		userGroups[groupId] = gr
 	} else {
-		md.groups[userId] = map[string]*GroupInfo {
+		md.groups[userId] = map[string]*GroupInfo{
 			gr.GroupId: gr,
 		}
 	}
@@ -166,7 +193,6 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 	gr.consistentUpdate()
 
-	log.Debug("SHARDS:", gr.NumShards, gr.Shards)
 	if len(gr.Shards) >= gr.NumShards {
 		log.Debug("Max number of shards allowed, can't adquire more")
 		return false, CErrMaxShardsByGroup
@@ -177,13 +203,13 @@ func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 		return false, CSharPrevOwnedGroup
 	}
 
-	gr.Shards[instances.GetHostName()] = &Shard {
-		Addr: instances.GetHostName(),
+	gr.Shards[instances.GetHostName()] = &Shard{
+		Addr:   instances.GetHostName(),
 		LastTs: uint32(time.Now().Unix()),
 
 		ReqHour: []uint64{},
-		ReqMin: []uint64{},
-		ReqSec: 0,
+		ReqMin:  []uint64{},
+		ReqSec:  0,
 	}
 
 	// Adquire
@@ -209,10 +235,24 @@ func (gr *GroupInfo) keepAliveOwnedShard(hostName string) {
 
 func (gr *GroupInfo) ReleaseAdquiredShard() {
 	gr.adquiredInGroup = false
-	md.mutex.Lock()
+	gr.md.mutex.Lock()
 	delete(gr.Shards, instances.GetHostName())
-	md.mutex.Unlock()
+	gr.md.mutex.Unlock()
 	gr.persist()
+}
+
+func (md *Model) ReleaseAllAdquiredShards() {
+	for _, groupsByUser := range md.groups {
+		for _, group := range groupsByUser {
+			if _, ok := group.Shards[instances.GetHostName()]; ok {
+				group.adquiredInGroup = false
+				md.mutex.Lock()
+				delete(group.Shards, instances.GetHostName())
+				md.mutex.Unlock()
+				group.persist()
+			}
+		}
+	}
 }
 
 func (gr *GroupInfo) getPrimKey() string {
@@ -221,17 +261,17 @@ func (gr *GroupInfo) getPrimKey() string {
 
 func (gr *GroupInfo) consistentUpdate() (success bool) {
 	attKey := &dynamodb.Key{
-		HashKey: gr.getPrimKey(),
+		HashKey:  gr.getPrimKey(),
 		RangeKey: "",
 	}
 	if data, err := gr.table.GetItemConsistent(attKey, true); err == nil {
-		md.mutex.Lock()
+		gr.md.mutex.Lock()
 		if err := json.Unmarshal([]byte(data["info"].Value), &gr); err != nil {
 			log.Error("Problem trying to update the group information for group with ID:", gr.getPrimKey(), "Error:", err)
-			md.mutex.Unlock()
+			gr.md.mutex.Unlock()
 			return false
 		}
-		md.mutex.Unlock()
+		gr.md.mutex.Unlock()
 	} else {
 		log.Error("Problem trying to update the group information for group with ID:", gr.getPrimKey(), "Error:", err)
 		return false
@@ -263,7 +303,7 @@ func (gr *GroupInfo) persist() (err error) {
 }
 
 func (md *Model) updateInfo() {
-	log.Debug("Updating grups")
+	log.Debug("Updating grups info")
 	updatedInfo := make(map[string]map[string]bool)
 	if rows, err := md.table.Scan(nil); err == nil {
 		md.mutex.Lock()
@@ -274,29 +314,24 @@ func (md *Model) updateInfo() {
 				continue
 			}
 			groupInfo.table = md.table
-			log.Debug("USER FOUND1:", groupInfo.UserId)
 			if _, ok := md.groups[groupInfo.UserId]; ok {
 				if _, issetGroup := md.groups[groupInfo.UserId][groupInfo.GroupId]; !issetGroup {
 					md.groups[groupInfo.UserId][groupInfo.GroupId] = groupInfo
 				}
 			} else {
-				md.groups[groupInfo.UserId] = map[string]*GroupInfo {
+				md.groups[groupInfo.UserId] = map[string]*GroupInfo{
 					groupInfo.GroupId: groupInfo,
 				}
 			}
 
-			log.Debug("USER FOUND:", groupInfo.UserId)
 			if _, ok := updatedInfo[groupInfo.UserId]; ok {
 				updatedInfo[groupInfo.UserId][groupInfo.GroupId] = true
 			} else {
-				updatedInfo[groupInfo.UserId] = map[string]bool {
+				updatedInfo[groupInfo.UserId] = map[string]bool{
 					groupInfo.GroupId: true,
 				}
 			}
 		}
-
-		log.Debug("md.groups:", md.groups)
-		log.Debug("updatedInfo:", updatedInfo)
 
 		// Remove the deprecated configuration
 		for userId, userGroups := range md.groups {
@@ -313,8 +348,24 @@ func (md *Model) updateInfo() {
 			}
 		}
 		md.mutex.Unlock()
+		md.checkAndReleaseDeadShards()
 	} else {
 		log.Error("Problem trying to get the list of shards from Dynamo DB, Error:", err)
+	}
+}
+
+func (md *Model) checkAndReleaseDeadShards() {
+	for _, groups := range md.groups {
+		for _, group := range groups {
+			for hostname, shardInfo := range group.Shards {
+				if shardInfo.LastTs+cShardTTL < uint32(time.Now().Unix()) {
+					md.mutex.Lock()
+					delete(group.Shards, hostname)
+					group.persist()
+					md.mutex.Unlock()
+				}
+			}
+		}
 	}
 }
 

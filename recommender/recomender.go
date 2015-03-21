@@ -31,10 +31,11 @@ const (
 type RecommenderInt interface {
 	// Calculates the scores for the given records, and stores in memory
 	// the classification for further processing
-	CalcScores(recID uint64, scores map[uint64]uint64) (result []uint64)
+	CalcScores(recID uint64, scores map[uint64]uint8, maxToReturn int) (result []uint64)
 	// Just adds a new record to the recommender system in order to
 	// increase the knoledge DB
-	AddRecord(recID uint64, scores map[uint64]uint64)
+	AddRecord(recID uint64, scores map[uint64]uint8)
+	GetTotalElements() uint64
 	// CalcScores Lanches the ETL process to create the tree
 	RecalculateTree()
 	// Stores all the records serialized in a inexpensive storage system
@@ -92,6 +93,10 @@ func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint
 	go rc.checkAndExpire()
 
 	return
+}
+
+func (rc *Recommender) GetTotalElements() uint64 {
+	return rc.totalClassif
 }
 
 func (rc *Recommender) GetStatus() string {
