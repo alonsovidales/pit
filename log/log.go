@@ -25,6 +25,13 @@ var path string
 var maxSize int64
 var mutex = new(sync.Mutex)
 
+var Levels = map[string]int{
+	"DEBUG": DEBUG,
+	"INFO":  INFO,
+	"ERROR": ERROR,
+	"FATAL": FATAL,
+}
+
 // SetLogger Sets the global logger level, and the path and size of the log
 // file to be used as output for the logs, in case of this method is not
 // called, all the logs will be print on the standar output

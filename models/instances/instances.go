@@ -82,6 +82,10 @@ func InitAndKeepAlive(prefix string, awsRegion string) (im *InstancesModel) {
 }
 
 func (im *InstancesModel) GetTotalInstances() int {
+	if len(im.instancesAlive) == 0 {
+		return 1
+	}
+
 	return len(im.instancesAlive)
 }
 
@@ -125,6 +129,17 @@ func (im *InstancesModel) updateInstances() {
 			lastTs, _ := strconv.ParseInt(row["ts"].Value, 10, 64)
 			if lastTs, _ = strconv.ParseInt(row["ts"].Value, 10, 64); lastTs+cTTL > time.Now().Unix() && row[cPrimKey].Value != hostName {
 				instances = append(instances, row[cPrimKey].Value)
+			} else if row[cPrimKey].Value != hostName {
+				log.Info("Outdated instance detected, removing it, name:", row[cPrimKey].Value)
+				attKey := &dynamodb.Key{
+					HashKey:  row[cPrimKey].Value,
+					RangeKey: "",
+				}
+
+				_, err = im.table.DeleteItem(attKey)
+				if err != nil {
+					log.Error("The instance:", row[cPrimKey].Value, "can't be removed, Error:", err)
+				}
 			}
 		}
 		im.mutex.Lock()

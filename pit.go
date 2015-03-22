@@ -11,8 +11,17 @@ import (
 )
 
 func main() {
-	cfg.Init("pit", "dev")
+	if len(os.Args) > 1 {
+		cfg.Init("pit", os.Args[1])
 
+		log.SetLogger(
+			log.Levels[cfg.GetStr("logger", "level")],
+			cfg.GetStr("logger", "log_file"),
+			cfg.GetInt("logger", "max_log_size_mb"),
+		)
+	} else {
+		cfg.Init("pit", "dev")
+	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	manager := shardsmanager.Init(

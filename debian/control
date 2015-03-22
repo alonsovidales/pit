@@ -1,0 +1,9 @@
+Maintainer: Alonso Vidales <alonso.vidales@tras2.es>
+Priority: optional
+Section: misc
+Source: pit
+Package: pit
+Architecture: amd64
+Depends: supervisor
+Description: Pit is a hight performance distributed recommender system
+Version: 0.0.1

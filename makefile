@@ -30,3 +30,27 @@ lint:
 	@echo "$(OK_COLOR)==> lint"
 	@echo "$(OK_COLOR)==> Linting$(NO_COLOR)"
 	golint ./...
+
+deb:
+	@echo "$(OK_COLOR)==> Building DEB$(NO_COLOR)"
+	mkdir -p dist_package/usr/local/bin
+	mkdir -p dist_package/var/log/pit
+	GOOS=linux GOARCH=amd64 go build -o dist_package/usr/local/bin/pit pit.go
+	rm -rf tmp
+	mkdir tmp
+	cp -a etc dist_package/
+
+	cd dist_package; tar czvf ../tmp/data.tar.gz *
+
+	cd debian; tar czvf ../tmp/control.tar.gz *
+	echo 2.0 > tmp/debian-binary
+	ar -r pit.deb tmp/debian-binary tmp/control.tar.gz tmp/data.tar.gz
+	rm -rf tmp
+	@echo "$(OK_COLOR)==> Package created: pit.deb$(NO_COLOR)"
+
+deploy_dev: deb
+	@ for SERVER in $$PIT_DEV_SERVERS ; do \
+		echo "Deploying on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
+		scp -i $$HOME/.ssh/id_rsa_dev_pit pit.deb ubuntu@$$SERVER:/tmp/pit.deb ; \
+		ssh -i $$HOME/.ssh/id_rsa_dev_pit ubuntu@$$SERVER "sudo dpkg -i /tmp/pit.deb" ; \
+	done

@@ -3,6 +3,7 @@ package shardsmanager
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/alonsovidales/pit/log"
 	"github.com/alonsovidales/pit/models/instances"
 	"github.com/alonsovidales/pit/models/shard_info"
 	"github.com/alonsovidales/pit/recommender"
@@ -14,6 +15,7 @@ import (
 )
 
 const cRecPath = "/get_rec"
+const cCheckHealtyURI = "/check_healty"
 
 type Manager struct {
 	awsRegion      string
@@ -182,12 +184,18 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 
 func (mg *Manager) startApi() {
 	mux := http.NewServeMux()
-	http.HandleFunc(cRecPath, mg.scoresApiHandler)
-	http.ListenAndServe(fmt.Sprintf(":%d", mg.port), mux)
+	mux.HandleFunc(cCheckHealtyURI, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+	mux.HandleFunc(cRecPath, mg.scoresApiHandler)
+	log.Info("Starting API server on port:", mg.port)
+	go http.ListenAndServe(fmt.Sprintf(":%d", mg.port), mux)
 }
 
 func (mg *Manager) manage() {
 	go mg.recalculateRecs()
+	go mg.startApi()
 
 	for mg.active {
 		maxShardsToAdquire := mg.shardsModel.GetTotalNumberOfShards() / mg.instancesModel.GetTotalInstances()
@@ -200,6 +208,8 @@ func (mg *Manager) manage() {
 				}
 			}
 		}
+
+		time.Sleep(time.Second)
 	}
 
 	mg.shardsModel.ReleaseAllAdquiredShards()

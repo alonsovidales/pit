@@ -1,1 +1,4 @@
 test_training_set/*
+tmp
+dist_package
+pit.deb
