@@ -9,7 +9,7 @@ import (
 var im *InstancesModel
 
 func TestMain(m *testing.M) {
-	im = InitAndKeepAlive("test", "eu-west-1")
+	im = InitAndKeepAlive("test", "eu-west-1", true)
 	time.Sleep(time.Second)
 
 	retCode := m.Run()

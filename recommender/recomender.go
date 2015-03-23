@@ -104,12 +104,12 @@ func (rc *Recommender) GetStatus() string {
 }
 
 func (rc *Recommender) CalcScores(recID uint64, scores map[uint64]uint8, maxToReturn int) (result []uint64) {
+	rc.AddRecord(recID, scores)
+
 	if rc.recTree == nil {
 		log.Debug("No tree:'(")
 		return
 	}
-
-	rc.AddRecord(recID, scores)
 	result = rc.recTree.GetBestRecommendation(scores, maxToReturn)
 
 	return
@@ -121,8 +121,12 @@ func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
 	var existingRecord bool
 	rc.mutex.Lock()
 	if sc, existingRecord = rc.records[recID]; existingRecord {
-		sc.prev.next = sc.next
-		sc.next.prev = sc.prev
+		if sc.prev != nil {
+			sc.prev.next = sc.next
+		}
+		if sc.next != nil {
+			sc.next.prev = sc.prev
+		}
 
 		rc.totalClassif += uint64(len(scores) - len(sc.scores))
 		sc.scores = scores
@@ -146,6 +150,8 @@ func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
 		rc.older = sc
 	}
 	rc.mutex.Unlock()
+
+	log.Debug("Stored elements:", rc.totalClassif, "Max stored elements:", rc.maxClassif)
 }
 
 func (rc *Recommender) RecalculateTree() {
@@ -189,7 +195,7 @@ func (rc *Recommender) LoadBackup() (success bool) {
 	dataFromJson := [][]uint64{}
 	json.Unmarshal(rc.uncompress(jsonData), &dataFromJson)
 
-	log.Debug("Load2", len(dataFromJson))
+	log.Debug("Data loaded from S3, len:", len(dataFromJson))
 	recs := 0
 	for _, record := range dataFromJson {
 		scores := make(map[uint64]uint8)
@@ -241,6 +247,8 @@ func (rc *Recommender) SaveBackup() {
 	if err != nil {
 		log.Error("Problem trying to upload backup to S3 from:", rc.identifier, "Error:", err)
 	}
+
+	log.Info("New backup stored on S3, bucket:", S3BUCKET, "Path:", rc.getS3Path())
 }
 
 func (rc *Recommender) getS3Path() string {

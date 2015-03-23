@@ -35,7 +35,8 @@ deb:
 	@echo "$(OK_COLOR)==> Building DEB$(NO_COLOR)"
 	mkdir -p dist_package/usr/local/bin
 	mkdir -p dist_package/var/log/pit
-	GOOS=linux GOARCH=amd64 go build -o dist_package/usr/local/bin/pit pit.go
+	GOOS=linux GOARCH=amd64 go build -o dist_package/usr/local/bin/pit bin/pit.go
+	GOOS=linux GOARCH=amd64 go build -o dist_package/usr/local/bin/pit-cli bin/pit-cli.go
 	rm -rf tmp
 	mkdir tmp
 	cp -a etc dist_package/
@@ -50,7 +51,10 @@ deb:
 
 deploy_dev: deb
 	@ for SERVER in $$PIT_DEV_SERVERS ; do \
-		echo "Deploying on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
+		echo "Uploading code to server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
 		scp -i $$HOME/.ssh/id_rsa_dev_pit pit.deb ubuntu@$$SERVER:/tmp/pit.deb ; \
+	done
+	@ for SERVER in $$PIT_DEV_SERVERS ; do \
+		echo "Deploying new code on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
 		ssh -i $$HOME/.ssh/id_rsa_dev_pit ubuntu@$$SERVER "sudo dpkg -i /tmp/pit.deb" ; \
 	done

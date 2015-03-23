@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/alonsovidales/pit/log"
-	"github.com/alonsovidales/pit/models/instances"
+	//"github.com/alonsovidales/pit/models/instances"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
 	"sync"
@@ -13,9 +13,13 @@ import (
 )
 
 const (
-	cTable             = "rec_shards"
-	cPrimKey           = "groupId"
-	cDefaultWRCapacity = 10
+	cGroupsTable             = "rec_groups"
+	cGroupsPrimKey           = "groupId"
+	cGroupsDefaultWRCapacity = 5
+
+	cShardsTable             = "rec_shards"
+	cShardsPrimKey           = "shardId"
+	cShardsDefaultWRCapacity = 10
 
 	cMaxHoursToStore   = 168 // A week
 	cUpdatePeriod      = 5
@@ -37,22 +41,26 @@ type GroupInfoInt interface {
 
 type Shard struct {
 	Addr   string `json:"addr"`
+	GroupID   string `json:"group_id"`
+	ShardID   int `json:"shard_id"`
 	LastTs uint32 `json:"last_ts"`
 
 	ReqHour []uint64 `json:"reqs_hour"`
 	ReqMin  []uint64 `json:"reqs_min"`
 	ReqSec  uint64   `json:"reqs_sec"`
+
+	md *Model
 }
 
 type GroupInfo struct {
 	GroupInfoInt `json:"-"`
 
-	UserId  string `json:"user_id"`
+	UserID  string `json:"user_id"`
 	Secret  string `json:"secret"`
-	GroupId string `json:"group_id"`
+	GroupID string `json:"group_id"`
 
 	// MaxScore The max score for the group elements
-	MaxScore uint8 `json:"tot_shards"`
+	MaxScore uint8 `json:"max_score"`
 	// NumShards Total number of shards by this group
 	NumShards int `json:"tot_shards"`
 	// MaxElements Total number of elements allocated by shard
@@ -64,21 +72,21 @@ type GroupInfo struct {
 
 	// Shards the key of this map is the host name of the owner of the
 	// shard, and the value the shard
-	Shards map[string]*Shard
+	Shards map[string]*Shard `json:"-"`
+	ShardsByAddr map[string]*Shard `json:"-"`
 
 	md *Model
 
 	adquiredInGroup bool
-
-	table *dynamodb.Table
 }
 
 type ModelInt interface {
 	GetAllGroups() map[string]map[string]*GroupInfo
-	GetGroupById(userId, secret, groupId string) (gr *GroupInfo, err error)
+	GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupInfo, err error)
 	AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, err error)
 	ReleaseAllAdquiredShards()
 	GetTotalNumberOfShards() (tot int)
+	RemoveGroup(groupId string) (err error)
 }
 
 type Model struct {
@@ -86,23 +94,29 @@ type Model struct {
 
 	// groups by user ID and Group ID
 	groups    map[string]map[string]*GroupInfo
-	table     *dynamodb.Table
-	tableName string
-	mutex     sync.Mutex
+
+	groupsTable     *dynamodb.Table
+	shardsTable     *dynamodb.Table
+	groupsTableName string
+	shardsTableName string
+	groupsMutex     sync.Mutex
+	shardsMutex     sync.Mutex
 	conn      *dynamodb.Server
 }
 
 func GetModel(prefix, awsRegion string) (md *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
 		md = &Model{
-			tableName: fmt.Sprintf("%s_%s", prefix, cTable),
+			groupsTableName: fmt.Sprintf("%s_%s", prefix, cGroupsTable),
+			shardsTableName: fmt.Sprintf("%s_%s", prefix, cShardsTable),
 			groups:    make(map[string]map[string]*GroupInfo),
 			conn: &dynamodb.Server{
 				Auth:   awsAuth,
 				Region: aws.Regions[awsRegion],
 			},
 		}
-		md.initTable()
+		md.groupsTable = md.getTable(md.groupsTableName, cGroupsPrimKey, cGroupsDefaultWRCapacity, md.groupsMutex)
+		md.shardsTable = md.getTable(md.shardsTableName, cShardsPrimKey, cShardsDefaultWRCapacity, md.shardsMutex)
 
 		md.updateInfo()
 		go func() {
@@ -120,38 +134,6 @@ func GetModel(prefix, awsRegion string) (md *Model) {
 	return
 }
 
-func (md *Model) GetTotalNumberOfShards() (tot int) {
-	md.mutex.Lock()
-	for _, groups := range md.groups {
-		for _, group := range groups {
-			tot += group.NumShards
-		}
-	}
-	md.mutex.Unlock()
-
-	return
-}
-
-func (md *Model) GetAllGroups() map[string]map[string]*GroupInfo {
-	return md.groups
-}
-
-func (md *Model) GetGroupById(userId, secret, groupId string) (gr *GroupInfo, err error) {
-	if userGroups, ugOk := md.groups[userId]; ugOk {
-		if group, grOk := userGroups[groupId]; grOk {
-			if group.Secret == secret {
-				return group, nil
-			} else {
-				return nil, CErrAuth
-			}
-		} else {
-			return nil, CErrGroupNotFound
-		}
-	}
-
-	return nil, CErrGroupUserNotFound
-}
-
 func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, err error) {
 	if userGroups, ugOk := md.groups[userId]; ugOk {
 		if group, grOk := userGroups[groupId]; grOk {
@@ -160,9 +142,9 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 	}
 
 	gr = &GroupInfo{
-		UserId:  userId,
+		UserID:  userId,
 		Secret:  secret,
-		GroupId: groupId,
+		GroupID: groupId,
 
 		NumShards: numShards,
 		MaxScore:  maxScore,
@@ -174,8 +156,6 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 		Shards: make(map[string]*Shard),
 
 		md: md,
-
-		table: md.table,
 	}
 
 	log.Debug("Shards Max Shards:", numShards, gr.NumShards)
@@ -183,116 +163,141 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 		userGroups[groupId] = gr
 	} else {
 		md.groups[userId] = map[string]*GroupInfo{
-			gr.GroupId: gr,
+			gr.GroupID: gr,
 		}
+	}
+
+	for i := 0; i < numShards; i++ {
+		gr.addShard(i)
 	}
 
 	return gr, gr.persist()
 }
 
-func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
-	gr.consistentUpdate()
+func (md *Model) updateInfo() {
+	log.Debug("Updating grups info...")
+	// This structure will be used in order to determine what groups are
+	// still in use and what not
+	updatedInfo := make(map[string]map[string]bool)
+	if groupsRows, err := md.groupsTable.Scan(nil); err == nil {
+		if shardsRows, err := md.shardsTable.Scan(nil); err == nil {
+			md.shardsMutex.Lock()
 
-	if len(gr.Shards) >= gr.NumShards {
-		log.Debug("Max number of shards allowed, can't adquire more")
-		return false, CErrMaxShardsByGroup
-	}
-
-	if _, in := gr.Shards[instances.GetHostName()]; in {
-		log.Debug("This instance owns a shard on this group:", gr.GroupId)
-		return false, CSharPrevOwnedGroup
-	}
-
-	gr.Shards[instances.GetHostName()] = &Shard{
-		Addr:   instances.GetHostName(),
-		LastTs: uint32(time.Now().Unix()),
-
-		ReqHour: []uint64{},
-		ReqMin:  []uint64{},
-		ReqSec:  0,
-	}
-
-	// Adquire
-	gr.persist()
-	gr.consistentUpdate()
-
-	_, in := gr.Shards[instances.GetHostName()]
-	gr.adquiredInGroup = true
-
-	go gr.keepAliveOwnedShard(instances.GetHostName())
-
-	return in, nil
-}
-
-func (gr *GroupInfo) keepAliveOwnedShard(hostName string) {
-	for gr.adquiredInGroup {
-		log.Debug("Updating shard TTL for group:", gr.GroupId, instances.GetHostName())
-		gr.Shards[hostName].LastTs = uint32(time.Now().Unix())
-		gr.persist()
-		time.Sleep(time.Second * cUpdateShardPeriod)
-	}
-}
-
-func (gr *GroupInfo) ReleaseAdquiredShard() {
-	gr.adquiredInGroup = false
-	gr.md.mutex.Lock()
-	delete(gr.Shards, instances.GetHostName())
-	gr.md.mutex.Unlock()
-	gr.persist()
-}
-
-func (md *Model) ReleaseAllAdquiredShards() {
-	for _, groupsByUser := range md.groups {
-		for _, group := range groupsByUser {
-			if _, ok := group.Shards[instances.GetHostName()]; ok {
-				group.adquiredInGroup = false
-				md.mutex.Lock()
-				delete(group.Shards, instances.GetHostName())
-				md.mutex.Unlock()
-				group.persist()
+			shardInfoByGroup := make(map[string]map[string]*Shard)
+			for _, shardInfoRow := range shardsRows {
+				shardInfo := new(Shard)
+				if err := json.Unmarshal([]byte(shardInfoRow["info"].Value), &shardInfo); err != nil {
+					log.Error("The returned data from Dynamo DB for the shards info can't be unmarshalled, Error:", err)
+					continue
+				}
+				shardIDStr := fmt.Sprintf("%d", shardInfo.ShardID)
+				if _, ok := shardInfoByGroup[shardInfo.GroupID]; ok {
+					shardInfoByGroup[shardInfo.GroupID][shardIDStr] = shardInfo
+				} else {
+					shardInfoByGroup[shardInfo.GroupID] = map[string]*Shard{
+						shardIDStr: shardInfo,
+					}
+				}
 			}
-		}
-	}
-}
 
-func (gr *GroupInfo) getPrimKey() string {
-	return gr.UserId + ":" + gr.GroupId
-}
+			md.groupsMutex.Lock()
 
-func (gr *GroupInfo) consistentUpdate() (success bool) {
-	attKey := &dynamodb.Key{
-		HashKey:  gr.getPrimKey(),
-		RangeKey: "",
-	}
-	if data, err := gr.table.GetItemConsistent(attKey, true); err == nil {
-		gr.md.mutex.Lock()
-		if err := json.Unmarshal([]byte(data["info"].Value), &gr); err != nil {
-			log.Error("Problem trying to update the group information for group with ID:", gr.getPrimKey(), "Error:", err)
-			gr.md.mutex.Unlock()
-			return false
+			md.groups = make(map[string]map[string]*GroupInfo)
+			for _, groupInfoRow := range groupsRows {
+				groupInfo := new(GroupInfo)
+				if err := json.Unmarshal([]byte(groupInfoRow["info"].Value), &groupInfo); err != nil {
+					log.Error("The returned data from Dynamo DB for the shards info can't be unmarshalled, Error:", err)
+					continue
+				}
+
+				groupInfo.md = md
+				groupInfo.Shards = shardInfoByGroup[groupInfo.GroupID]
+				groupInfo.ShardsByAddr = make(map[string]*Shard)
+				for _, shard := range groupInfo.Shards {
+					if shard.Addr != "" {
+						groupInfo.ShardsByAddr[shard.Addr] = shard
+					}
+				}
+
+				if _, ok := md.groups[groupInfo.UserID]; ok {
+					md.groups[groupInfo.UserID][groupInfo.GroupID] = groupInfo
+				} else {
+					md.groups[groupInfo.UserID] = map[string]*GroupInfo{
+						groupInfo.GroupID: groupInfo,
+					}
+				}
+
+				if _, ok := updatedInfo[groupInfo.UserID]; ok {
+					updatedInfo[groupInfo.UserID][groupInfo.GroupID] = true
+				} else {
+					updatedInfo[groupInfo.UserID] = map[string]bool{
+						groupInfo.GroupID: true,
+					}
+				}
+			}
+
+			md.groupsMutex.Unlock()
+			md.shardsMutex.Unlock()
+
+			log.Debug("UPDATE Result:", md.groups["userId"]["groupId"])
+		} else {
+			log.Error("Problem trying to get the list of shards from Dynamo DB, Error:", err)
 		}
-		gr.md.mutex.Unlock()
 	} else {
-		log.Error("Problem trying to update the group information for group with ID:", gr.getPrimKey(), "Error:", err)
-		return false
+		log.Error("Problem trying to get the list of groups from Dynamo DB, Error:", err)
+	}
+}
+
+func (gr *GroupInfo) addShard(shardId int) (shard *Shard, err error) {
+	shard = &Shard {
+		GroupID: gr.GroupID,
+		ShardID: shardId,
+		md: gr.md,
 	}
 
-	return true
+	shard.persist()
+
+	return
+}
+
+func (sh *Shard) persist() (err error) {
+	// Persis the shard row
+	if shJson, err := json.Marshal(sh); err == nil {
+		log.Debug("Persisting shard:", sh, string(shJson))
+		keyStr := fmt.Sprintf("%d", sh.ShardID)
+		attribs := []dynamodb.Attribute{
+			*dynamodb.NewStringAttribute(cShardsPrimKey, keyStr),
+			*dynamodb.NewStringAttribute("info", string(shJson)),
+		}
+
+		if _, err := sh.md.shardsTable.PutItem(keyStr, cShardsPrimKey, attribs); err != nil {
+			log.Error("The shard information for the shard of the group:", sh.GroupID, "And Shard ID:", sh.ShardID, " can't be persisted on Dynamo DB, Error:", err)
+			return err
+		}
+		log.Debug("Shard persisted:", sh.ShardID)
+	} else {
+		log.Error("The shard info can't be converted to JSON, Erro:", err)
+
+		return err
+	}
+
+	return
 }
 
 func (gr *GroupInfo) persist() (err error) {
+	// Persis the groups row
 	if grJson, err := json.Marshal(gr); err == nil {
-		log.Debug("Persist:", gr, string(grJson))
+		log.Debug("Persisting group:", gr, string(grJson))
 		attribs := []dynamodb.Attribute{
-			*dynamodb.NewStringAttribute(cPrimKey, gr.getPrimKey()),
+			*dynamodb.NewStringAttribute(cGroupsPrimKey, gr.GroupID),
 			*dynamodb.NewStringAttribute("info", string(grJson)),
 		}
 
-		if _, err := gr.table.PutItem(gr.getPrimKey(), cPrimKey, attribs); err != nil {
-			log.Error("The group information for the group:", gr.getPrimKey(), " can't be persisted on Dynamo DB, Error:", err)
+		if _, err := gr.md.groupsTable.PutItem(gr.GroupID, cGroupsPrimKey, attribs); err != nil {
+			log.Error("The group information for the group:", gr.GroupID, " can't be persisted on Dynamo DB, Error:", err)
 			return err
 		}
-		log.Debug("Group persisted:", gr.getPrimKey())
+		log.Debug("Group persisted:", gr.GroupID)
 	} else {
 		log.Error("The group info can't be converted to JSON, Erro:", err)
 
@@ -302,121 +307,62 @@ func (gr *GroupInfo) persist() (err error) {
 	return
 }
 
-func (md *Model) updateInfo() {
-	log.Debug("Updating grups info")
-	updatedInfo := make(map[string]map[string]bool)
-	if rows, err := md.table.Scan(nil); err == nil {
-		md.mutex.Lock()
-		for _, row := range rows {
-			groupInfo := new(GroupInfo)
-			if err := json.Unmarshal([]byte(row["info"].Value), &groupInfo); err != nil {
-				log.Error("The returned data from Dynamo DB for the shards info can't be unmarshalled, Error:", err)
-				continue
-			}
-			groupInfo.table = md.table
-			if _, ok := md.groups[groupInfo.UserId]; ok {
-				if _, issetGroup := md.groups[groupInfo.UserId][groupInfo.GroupId]; !issetGroup {
-					md.groups[groupInfo.UserId][groupInfo.GroupId] = groupInfo
-				}
-			} else {
-				md.groups[groupInfo.UserId] = map[string]*GroupInfo{
-					groupInfo.GroupId: groupInfo,
-				}
-			}
+func (md *Model) getTable(tName, tPrimKey string, rwCapacity int64, mutex sync.Mutex) (table *dynamodb.Table) {
+	mutex.Lock()
+	defer mutex.Unlock()
 
-			if _, ok := updatedInfo[groupInfo.UserId]; ok {
-				updatedInfo[groupInfo.UserId][groupInfo.GroupId] = true
-			} else {
-				updatedInfo[groupInfo.UserId] = map[string]bool{
-					groupInfo.GroupId: true,
-				}
-			}
-		}
+	pKey := dynamodb.PrimaryKey{dynamodb.NewStringAttribute(tPrimKey, ""), nil}
+	table = md.conn.NewTable(tName, pKey)
 
-		// Remove the deprecated configuration
-		for userId, userGroups := range md.groups {
-			if _, issetUser := updatedInfo[userId]; issetUser {
-				for groupId, _ := range userGroups {
-					if _, issetGroup := updatedInfo[userId][groupId]; !issetGroup {
-						log.Debug("Group:", groupId, "removed on user:", userId)
-						delete(md.groups[userId], groupId)
-					}
-				}
-			} else {
-				log.Debug("User removed with ID:", userId)
-				delete(md.groups, userId)
-			}
-		}
-		md.mutex.Unlock()
-		md.checkAndReleaseDeadShards()
-	} else {
-		log.Error("Problem trying to get the list of shards from Dynamo DB, Error:", err)
-	}
-}
-
-func (md *Model) checkAndReleaseDeadShards() {
-	for _, groups := range md.groups {
-		for _, group := range groups {
-			for hostname, shardInfo := range group.Shards {
-				if shardInfo.LastTs+cShardTTL < uint32(time.Now().Unix()) {
-					md.mutex.Lock()
-					delete(group.Shards, hostname)
-					group.persist()
-					md.mutex.Unlock()
-				}
-			}
-		}
-	}
-}
-
-func (md *Model) initTable() {
-	md.mutex.Lock()
-	defer md.mutex.Unlock()
-
-	pKey := dynamodb.PrimaryKey{dynamodb.NewStringAttribute(cPrimKey, ""), nil}
-	md.table = md.conn.NewTable(md.tableName, pKey)
-	log.Debug("Table:", md.table, md.tableName, cPrimKey)
-
-	res, err := md.table.DescribeTable()
+	res, err := table.DescribeTable()
 	if err != nil {
-		log.Info("Creating a new table on DynamoDB:", md.tableName)
+		log.Info("Creating a new table on DynamoDB:", tName)
 		td := dynamodb.TableDescriptionT{
-			TableName: md.tableName,
+			TableName: tName,
 			AttributeDefinitions: []dynamodb.AttributeDefinitionT{
-				dynamodb.AttributeDefinitionT{cPrimKey, "S"},
+				dynamodb.AttributeDefinitionT{tPrimKey, "S"},
 			},
 			KeySchema: []dynamodb.KeySchemaT{
-				dynamodb.KeySchemaT{cPrimKey, "HASH"},
+				dynamodb.KeySchemaT{tPrimKey, "HASH"},
 			},
 			ProvisionedThroughput: dynamodb.ProvisionedThroughputT{
-				ReadCapacityUnits:  cDefaultWRCapacity,
-				WriteCapacityUnits: cDefaultWRCapacity,
+				ReadCapacityUnits:  rwCapacity,
+				WriteCapacityUnits: rwCapacity,
 			},
 		}
 
 		if _, err := md.conn.CreateTable(td); err != nil {
-			log.Error("Error trying to create a table on Dynamo DB, table:", md.tableName, "Error:", err)
+			log.Error("Error trying to create a table on Dynamo DB, table:", tName, "Error:", err)
 		}
-		if res, err = md.table.DescribeTable(); err != nil {
-			log.Error("Error trying to describe a table on Dynamo DB, table:", md.tableName, "Error:", err)
+		if res, err = table.DescribeTable(); err != nil {
+			log.Error("Error trying to describe a table on Dynamo DB, table:", tName, "Error:", err)
 		}
 	}
 
 	for "ACTIVE" != res.TableStatus {
-		if res, err = md.table.DescribeTable(); err != nil {
+		if res, err = table.DescribeTable(); err != nil {
 			log.Error("Can't describe Dynamo DB instances table, Error:", err)
 		}
 		log.Debug("Waiting for active table, current status:", res.TableStatus)
 		time.Sleep(time.Second)
 	}
+
+	return
 }
 
-func (md *Model) delTable() {
-	if tableDesc, err := md.conn.DescribeTable(md.tableName); err == nil {
+func (md *Model) delTables() {
+	if tableDesc, err := md.conn.DescribeTable(md.shardsTableName); err == nil {
 		if _, err = md.conn.DeleteTable(*tableDesc); err != nil {
-			log.Error("Can't remove Dynamo table:", md.tableName, "Error:", err)
+			log.Error("Can't remove Dynamo table:", md.shardsTableName, "Error:", err)
 		}
 	} else {
-		log.Error("Can't remove Dynamo table:", md.tableName, "Error:", err)
+		log.Error("Can't remove Dynamo table:", md.shardsTableName, "Error:", err)
+	}
+	if tableDesc, err := md.conn.DescribeTable(md.groupsTableName); err == nil {
+		if _, err = md.conn.DeleteTable(*tableDesc); err != nil {
+			log.Error("Can't remove Dynamo table:", md.groupsTableName, "Error:", err)
+		}
+	} else {
+		log.Error("Can't remove Dynamo table:", md.groupsTableName, "Error:", err)
 	}
 }

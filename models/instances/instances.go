@@ -2,6 +2,7 @@ package instances
 
 import (
 	"fmt"
+	"sort"
 	"github.com/alonsovidales/pit/log"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
@@ -21,6 +22,7 @@ const (
 type InstancesModelInt interface {
 	GetTotalInstances() int
 	GetInstances() (instances []string)
+	GetMaxShardsToAdquire(totalShards int) int
 }
 
 type InstancesModel struct {
@@ -33,6 +35,11 @@ type InstancesModel struct {
 	tableName      string
 	mutex          sync.Mutex
 }
+
+type byName []string
+func (a byName) Len() int           { return len(a) }
+func (a byName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byName) Less(i, j int) bool { return a[i] < a[j] }
 
 var hostName string
 
@@ -54,7 +61,7 @@ func SetHostname(hn string) {
 	hostName = hn
 }
 
-func InitAndKeepAlive(prefix string, awsRegion string) (im *InstancesModel) {
+func InitAndKeepAlive(prefix string, awsRegion string, keepAlive bool) (im *InstancesModel) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
 		im = &InstancesModel{
 			prefix:    prefix,
@@ -66,16 +73,39 @@ func InitAndKeepAlive(prefix string, awsRegion string) (im *InstancesModel) {
 		}
 		im.initTable()
 
+		if keepAlive {
+			im.registerHostName(hostName)
+		}
 		im.updateInstances()
-		go func() {
-			for {
-				im.updateInstances()
-				time.Sleep(time.Second)
-			}
-		}()
+		if keepAlive {
+			go func() {
+				for {
+					im.registerHostName(hostName)
+					im.updateInstances()
+					time.Sleep(time.Second)
+				}
+			}()
+		}
 	} else {
 		log.Error("Problem trying to connect with DynamoDB, Error:", err)
 		return
+	}
+
+	return
+}
+
+func (im *InstancesModel) GetMaxShardsToAdquire(totalShards int) (total int) {
+	im.mutex.Lock()
+	defer im.mutex.Unlock()
+
+	log.Debug("Instances alive:", im.instancesAlive)
+	if len(im.instancesAlive) == 0 {
+		return 0
+	}
+
+	total = totalShards / len(im.instancesAlive)
+	if im.instancesAlive[len(im.instancesAlive)-1] == hostName {
+		total += totalShards % len(im.instancesAlive)
 	}
 
 	return
@@ -117,17 +147,14 @@ func (im *InstancesModel) registerHostName(hostName string) {
 	if _, err := im.table.PutItem(hostName, cPrimKey, attribs); err != nil {
 		log.Fatal("The hostname can't be registered on the instances table, Error:", err)
 	}
-	log.Debug("Instance inserted:", hostName)
 }
 
 func (im *InstancesModel) updateInstances() {
-	im.registerHostName(hostName)
-
 	if rows, err := im.table.Scan(nil); err == nil {
 		instances := []string{}
 		for _, row := range rows {
 			lastTs, _ := strconv.ParseInt(row["ts"].Value, 10, 64)
-			if lastTs, _ = strconv.ParseInt(row["ts"].Value, 10, 64); lastTs+cTTL > time.Now().Unix() && row[cPrimKey].Value != hostName {
+			if lastTs, _ = strconv.ParseInt(row["ts"].Value, 10, 64); lastTs+cTTL > time.Now().Unix() {
 				instances = append(instances, row[cPrimKey].Value)
 			} else if row[cPrimKey].Value != hostName {
 				log.Info("Outdated instance detected, removing it, name:", row[cPrimKey].Value)
@@ -142,6 +169,8 @@ func (im *InstancesModel) updateInstances() {
 				}
 			}
 		}
+
+		sort.Sort(byName(instances))
 		im.mutex.Lock()
 		im.instancesAlive = instances
 		im.mutex.Unlock()
