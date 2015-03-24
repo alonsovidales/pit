@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/alonsovidales/pit/log"
-	//"github.com/alonsovidales/pit/models/instances"
+	"github.com/alonsovidales/pit/models/instances"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
 	"sync"
@@ -43,7 +43,7 @@ type Shard struct {
 	Addr   string `json:"addr"`
 	GroupID   string `json:"group_id"`
 	ShardID   int `json:"shard_id"`
-	LastTs uint32 `json:"last_ts"`
+	LastTs int64 `json:"last_ts"`
 
 	ReqHour []uint64 `json:"reqs_hour"`
 	ReqMin  []uint64 `json:"reqs_min"`
@@ -72,19 +72,18 @@ type GroupInfo struct {
 
 	// Shards the key of this map is the host name of the owner of the
 	// shard, and the value the shard
-	Shards map[string]*Shard `json:"-"`
+	Shards map[int]*Shard `json:"-"`
 	ShardsByAddr map[string]*Shard `json:"-"`
 
 	md *Model
-
-	adquiredInGroup bool
 }
 
 type ModelInt interface {
 	GetAllGroups() map[string]map[string]*GroupInfo
 	GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupInfo, err error)
+	GetGroupByID(groupId string) (gr *GroupInfo)
 	AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, err error)
-	ReleaseAllAdquiredShards()
+	ReleaseAllAcquiredShards()
 	GetTotalNumberOfShards() (tot int)
 	RemoveGroup(groupId string) (err error)
 }
@@ -153,7 +152,7 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 		MaxReqSec:       maxReqSec,
 		MaxInsertReqSec: maxInsertReqSec,
 
-		Shards: make(map[string]*Shard),
+		Shards: make(map[int]*Shard),
 
 		md: md,
 	}
@@ -174,6 +173,102 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 	return gr, gr.persist()
 }
 
+func (md *Model) GetGroupByID(groupID string) (gr *GroupInfo) {
+	md.groupsMutex.Lock()
+	defer md.groupsMutex.Unlock()
+
+	for _, groups := range md.groups {
+		for _, group := range groups {
+			if group.GroupID == groupID {
+				return group
+			}
+		}
+	}
+
+	return
+}
+
+func (md *Model) GetAllGroups() map[string]map[string]*GroupInfo {
+	return md.groups
+}
+
+func (md *Model) GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupInfo, err error) {
+	md.groupsMutex.Lock()
+	defer md.groupsMutex.Unlock()
+	if userGroups, ugOk := md.groups[userId]; ugOk {
+		if group, grOk := userGroups[groupId]; grOk {
+			if group.Secret == secret {
+				log.Debug("Group found:", group)
+				return group, nil
+			} else {
+				return nil, CErrAuth
+			}
+		} else {
+			return nil, CErrGroupNotFound
+		}
+	}
+
+	return nil, CErrGroupUserNotFound
+}
+
+func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
+	gr.md.shardsMutex.Lock()
+	defer gr.md.shardsMutex.Unlock()
+
+	if len(gr.ShardsByAddr) == len(gr.Shards) {
+		log.Debug("Max number of shards allowed, can't adquire more")
+		return false, CErrMaxShardsByGroup
+	}
+
+	if _, in := gr.ShardsByAddr[instances.GetHostName()]; in {
+		log.Debug("This instance owns a shard on this group:", gr.GroupID)
+		return false, CSharPrevOwnedGroup
+	}
+
+	// Get a free shard
+	var shard *Shard
+	found := false
+	for _, shard = range gr.Shards {
+		// Double check in order to be as sure as possible that this
+		// shard is still available
+		if shard.Addr == "" || shard.LastTs + cShardTTL < time.Now().Unix() {
+			shard.consistentUpdate()
+			if shard.Addr == "" || shard.LastTs + cShardTTL < time.Now().Unix() {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		return false, errors.New("Consistency error trying to adquire")
+	}
+
+	shard.Addr = instances.GetHostName()
+	shard.LastTs = time.Now().Unix()
+	gr.ShardsByAddr[instances.GetHostName()] = shard
+
+	// Adquire
+	shard.persist()
+	shard.consistentUpdate()
+
+	if shard.Addr == instances.GetHostName() {
+		go gr.keepAliveOwnedShard(instances.GetHostName())
+
+		return true, nil
+	}
+
+	return false, errors.New(fmt.Sprint("Race condition trying to adquire the shard:", gr.GroupID, ":", shard.ShardID))
+}
+
+func (gr *GroupInfo) keepAliveOwnedShard(hostName string) {
+	for {
+		log.Debug("Updating shard TTL for group:", gr.GroupID, hostName)
+		gr.ShardsByAddr[hostName].LastTs = time.Now().Unix()
+		gr.ShardsByAddr[hostName].persist()
+		time.Sleep(time.Second * cUpdateShardPeriod)
+	}
+}
+
 func (md *Model) updateInfo() {
 	log.Debug("Updating grups info...")
 	// This structure will be used in order to determine what groups are
@@ -183,19 +278,19 @@ func (md *Model) updateInfo() {
 		if shardsRows, err := md.shardsTable.Scan(nil); err == nil {
 			md.shardsMutex.Lock()
 
-			shardInfoByGroup := make(map[string]map[string]*Shard)
+			shardInfoByGroup := make(map[string]map[int]*Shard)
 			for _, shardInfoRow := range shardsRows {
 				shardInfo := new(Shard)
 				if err := json.Unmarshal([]byte(shardInfoRow["info"].Value), &shardInfo); err != nil {
 					log.Error("The returned data from Dynamo DB for the shards info can't be unmarshalled, Error:", err)
 					continue
 				}
-				shardIDStr := fmt.Sprintf("%d", shardInfo.ShardID)
+				shardInfo.md = md
 				if _, ok := shardInfoByGroup[shardInfo.GroupID]; ok {
-					shardInfoByGroup[shardInfo.GroupID][shardIDStr] = shardInfo
+					shardInfoByGroup[shardInfo.GroupID][shardInfo.ShardID] = shardInfo
 				} else {
-					shardInfoByGroup[shardInfo.GroupID] = map[string]*Shard{
-						shardIDStr: shardInfo,
+					shardInfoByGroup[shardInfo.GroupID] = map[int]*Shard{
+						shardInfo.ShardID: shardInfo,
 					}
 				}
 			}
@@ -256,15 +351,37 @@ func (gr *GroupInfo) addShard(shardId int) (shard *Shard, err error) {
 	}
 
 	shard.persist()
+	gr.Shards[shardId] = shard
 
 	return
+}
+
+func (sh *Shard) consistentUpdate() (success bool) {
+	attKey := &dynamodb.Key{
+		HashKey:  fmt.Sprintf("%d", sh.ShardID),
+		RangeKey: "",
+	}
+	if data, err := sh.md.shardsTable.GetItemConsistent(attKey, true); err == nil {
+		log.Debug("Consisten update shard:", sh.GroupID, sh.ShardID)
+		sh.md.shardsMutex.Lock()
+		defer sh.md.shardsMutex.Unlock()
+		if err := json.Unmarshal([]byte(data["info"].Value), &sh); err != nil {
+			log.Error("Problem trying to update the shard information for shard in group ID:", sh.GroupID, "and shard ID:", sh.ShardID, "Error:", err)
+			return false
+		}
+	} else {
+		log.Error("Problem trying to update the shard information for shard in group ID:", sh.GroupID, "and shard ID:", sh.ShardID, "Error:", err)
+		return false
+	}
+
+	return true
 }
 
 func (sh *Shard) persist() (err error) {
 	// Persis the shard row
 	if shJson, err := json.Marshal(sh); err == nil {
 		log.Debug("Persisting shard:", sh, string(shJson))
-		keyStr := fmt.Sprintf("%d", sh.ShardID)
+		keyStr := fmt.Sprintf("%s:%d", sh.GroupID, sh.ShardID)
 		attribs := []dynamodb.Attribute{
 			*dynamodb.NewStringAttribute(cShardsPrimKey, keyStr),
 			*dynamodb.NewStringAttribute("info", string(shJson)),
@@ -280,6 +397,18 @@ func (sh *Shard) persist() (err error) {
 
 		return err
 	}
+
+	return
+}
+
+func (md *Model) GetTotalNumberOfShards() (tot int) {
+	md.groupsMutex.Lock()
+	for _, groups := range md.groups {
+		for _, group := range groups {
+			tot += group.NumShards
+		}
+	}
+	md.groupsMutex.Unlock()
 
 	return
 }
@@ -305,6 +434,34 @@ func (gr *GroupInfo) persist() (err error) {
 	}
 
 	return
+}
+
+func (im *Model) RemoveGroup(groupId string) (err error) {
+	attKey := &dynamodb.Key{
+		HashKey:  groupId,
+		RangeKey: "",
+	}
+
+	_, err = im.groupsTable.DeleteItem(attKey)
+
+	return
+}
+
+func (md *Model) ReleaseAllAcquiredShards() {
+	md.groupsMutex.Lock()
+	defer md.groupsMutex.Unlock()
+
+	for _, groups := range md.groups {
+		for _, group := range groups {
+			if shard, ok := group.ShardsByAddr[instances.GetHostName()]; ok {
+				shard.Addr = ""
+				shard.persist()
+			}
+
+			delete(group.ShardsByAddr, instances.GetHostName())
+			group.persist()
+		}
+	}
 }
 
 func (md *Model) getTable(tName, tPrimKey string, rwCapacity int64, mutex sync.Mutex) (table *dynamodb.Table) {

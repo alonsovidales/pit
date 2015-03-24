@@ -40,7 +40,7 @@ func main() {
 	cmdGroupsListUser := cmdGroupsList.Flag("userid", `List the instances for this user`).String()
 
 	cmdGroupsDel := cmdGroups.Command("del", "Removes one of the groups")
-	cmdGroupsDelGroupId := cmdGroupsDel.Arg("group-id", `ID of the group to be removed`).Required().String()
+	cmdGroupsDelGroupID := cmdGroupsDel.Arg("group-id", `ID of the group to be removed`).Required().String()
 
 	cmdGroupsAdd := cmdGroups.Command("update", "Adds or updates an existing shard")
 	cmdGroupsAddMaxScore := cmdGroupsAdd.Flag("max-score", `Max possible score`).Required().Int()
@@ -62,7 +62,7 @@ func main() {
 		listGroups(*cmdGroupsListUser)
 
 	case cmdGroupsDel.FullCommand():
-		delGroup(*cmdGroupsDelGroupId)
+		delGroup(*cmdGroupsDelGroupID)
 
 	case cmdGroupsAdd.FullCommand():
 		addGroup(
@@ -100,7 +100,7 @@ func listGroups(userId string) {
 
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 3, '\t', 0)
-	fmt.Fprintln(w, "User ID\tSecret\tGroupId\tMax Score\tTotal Shards\tMax Elements\tMax req sec\tMax Insert Req Sec\tShard owners")
+	fmt.Fprintln(w, "User ID\tSecret\tGroupID\tMax Score\tTotal Shards\tMax Elements\tMax req sec\tMax Insert Req Sec\tShard owners")
 	fmt.Fprintln(w, "-------\t------\t-------\t---------\t------------\t------------\t-----------\t------------------\t------------")
 
 
@@ -115,9 +115,9 @@ func listGroups(userId string) {
 			fmt.Fprintf(
 				w,
 				"%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%s\n",
-				group.UserId,
+				group.UserID,
 				group.Secret,
-				group.GroupId,
+				group.GroupID,
 				group.MaxScore,
 				group.NumShards,
 				group.MaxElements,
@@ -135,7 +135,7 @@ func delGroup(groupId string) {
 		cfg.GetStr("aws", "prefix"),
 		cfg.GetStr("aws", "region"))
 
-	group := md.GetGroupById(groupId)
+	group := md.GetGroupByID(groupId)
 	if group == nil {
 		fmt.Println("Group not found with ID:", groupId)
 		return

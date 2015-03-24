@@ -56,10 +56,10 @@ func (mg *Manager) IsFinished() bool {
 }
 
 func (mg *Manager) adquiredShard(group *shardinfo.GroupInfo) {
-	rec := recommender.NewShard(mg.s3BackupsPath, group.GroupId, group.MaxElements, group.MaxScore, mg.awsRegion)
+	rec := recommender.NewShard(mg.s3BackupsPath, group.GroupID, group.MaxElements, group.MaxScore, mg.awsRegion)
 	rec.LoadBackup()
 	rec.RecalculateTree()
-	mg.adquiredShards[group.GroupId] = rec
+	mg.adquiredShards[group.GroupID] = rec
 }
 
 func (mg *Manager) recalculateRecs() {
@@ -93,7 +93,7 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if recommender, local := mg.adquiredShards[group.GroupId]; local {
+	if recommender, local := mg.adquiredShards[group.GroupID]; local {
 		jsonScores := make(map[string]uint8)
 		scores := make(map[uint64]uint8)
 		err = json.Unmarshal([]byte(elemScores), &jsonScores)
@@ -250,6 +250,6 @@ func (mg *Manager) manage() {
 		time.Sleep(time.Second)
 	}
 
-	mg.shardsModel.ReleaseAllAdquiredShards()
+	mg.shardsModel.ReleaseAllAcquiredShards()
 	mg.finished = true
 }
