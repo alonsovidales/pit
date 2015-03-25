@@ -23,7 +23,7 @@ type Manager struct {
 	port           int
 	active         bool
 	finished       bool
-	adquiredShards map[string]recommender.RecommenderInt
+	acquiredShards map[string]recommender.RecommenderInt
 
 	shardsModel    shardinfo.ModelInt
 	instancesModel instances.InstancesModelInt
@@ -39,7 +39,7 @@ func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
 		shardsModel:    shardinfo.GetModel(prefix, awsRegion),
 		instancesModel: instances.InitAndKeepAlive(prefix, awsRegion, true),
 		awsRegion:      awsRegion,
-		adquiredShards:      make(map[string]recommender.RecommenderInt),
+		acquiredShards:      make(map[string]recommender.RecommenderInt),
 	}
 
 	go mg.manage()
@@ -55,16 +55,16 @@ func (mg *Manager) IsFinished() bool {
 	return mg.finished
 }
 
-func (mg *Manager) adquiredShard(group *shardinfo.GroupInfo) {
+func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	rec := recommender.NewShard(mg.s3BackupsPath, group.GroupID, group.MaxElements, group.MaxScore, mg.awsRegion)
 	rec.LoadBackup()
 	rec.RecalculateTree()
-	mg.adquiredShards[group.GroupID] = rec
+	mg.acquiredShards[group.GroupID] = rec
 }
 
 func (mg *Manager) recalculateRecs() {
 	for {
-		for _, rec := range mg.adquiredShards {
+		for _, rec := range mg.acquiredShards {
 			rec.RecalculateTree()
 			rec.SaveBackup()
 		}
@@ -93,7 +93,7 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if recommender, local := mg.adquiredShards[group.GroupID]; local {
+	if rec, local := mg.acquiredShards[group.GroupID]; local && rec.GetStatus() == recommender.STATUS_ACTIVE {
 		jsonScores := make(map[string]uint8)
 		scores := make(map[uint64]uint8)
 		err = json.Unmarshal([]byte(elemScores), &jsonScores)
@@ -124,14 +124,14 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(justAdd) > 0 {
-			recommender.AddRecord(uint64(idInt), scores)
+			rec.AddRecord(uint64(idInt), scores)
 
 			// User not authorised to access to this shard
 			w.WriteHeader(200)
 			w.Write([]byte(fmt.Sprintf(`{
 				"success": true,
 				"stored_elements": %d
-			}`, recommender.GetTotalElements())))
+			}`, rec.GetTotalElements())))
 
 			return
 		} else {
@@ -143,7 +143,7 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 
 				return
 			}
-			recommendations := recommender.CalcScores(uint64(idInt), scores, int(maxRecsInt))
+			recommendations := rec.CalcScores(uint64(idInt), scores, int(maxRecsInt))
 			if len(recommendations) > 0 {
 				result, _ := json.Marshal(recommendations)
 				// User not authorised to access to this shard
@@ -152,7 +152,7 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 					"success": true,
 					"stored_elements": %d,
 					"recs": %s
-				}`, recommender.GetTotalElements(), string(result))))
+				}`, rec.GetTotalElements(), string(result))))
 			} else {
 				w.WriteHeader(200)
 				w.Write([]byte(fmt.Sprintf(`{
@@ -160,7 +160,7 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 					"status": "Adquiring data",
 					"stored_elements": %d,
 					"recs": []
-				}`, recommender.GetTotalElements())))
+				}`, rec.GetTotalElements())))
 			}
 
 			return
@@ -169,12 +169,15 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		log.Debug("Remote API request", group, "Shards:", group.Shards)
 		// TODO Get the results from another instance
 		var shard *shardinfo.Shard
+		var addr string
 		// Get a random instance with this shard
-		for _, shard = range group.Shards {
-			break
+		for addr, shard = range group.ShardsByAddr {
+			if addr != instances.GetHostName() {
+				break
+			}
 		}
 
-		if shard.Addr == instances.GetHostName() {
+		if shard == nil || addr == instances.GetHostName() {
 			w.WriteHeader(503)
 			w.Write([]byte("The server is provisioning the recomender system, the shard will be available soon, please be patient"))
 
@@ -237,11 +240,11 @@ func (mg *Manager) manage() {
 
 	for mg.active {
 		maxShardsToAdquire := mg.instancesModel.GetMaxShardsToAdquire(mg.shardsModel.GetTotalNumberOfShards())
-		if maxShardsToAdquire > len(mg.adquiredShards) {
+		if maxShardsToAdquire > len(mg.acquiredShards) {
 			for _, groups := range mg.shardsModel.GetAllGroups() {
 				for _, group := range groups {
-					if adquired, err := group.AcquireShard(); adquired && err == nil {
-						mg.adquiredShard(group)
+					if acquired, err := group.AcquireShard(); acquired && err == nil {
+						mg.acquiredShard(group)
 					}
 				}
 			}

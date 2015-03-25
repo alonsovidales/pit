@@ -19,7 +19,6 @@ const (
 	STATUS_SARTING       = "STARTING"
 	STATUS_ACTIVE        = "ACTIVE"
 	STATUS_NORECORDS     = "NO_RECORDS"
-	STATUS_RECALCULATING = "RECALCULATING"
 
 	cMinRecordsToStart = 100
 	cRecTreeMaxDeep    = 30
@@ -160,7 +159,6 @@ func (rc *Recommender) RecalculateTree() {
 		return
 	}
 
-	rc.status = STATUS_RECALCULATING
 	rc.mutex.Lock()
 	records := make([]map[uint64]uint8, len(rc.records))
 	i := 0
@@ -170,9 +168,9 @@ func (rc *Recommender) RecalculateTree() {
 	}
 	rc.mutex.Unlock()
 
-	rc.status = STATUS_ACTIVE
-
 	rc.recTree = rectree.ProcessNewTrees(records, cRecTreeMaxDeep, rc.maxScore, cRecTreeNumOfTrees)
+
+	rc.status = STATUS_ACTIVE
 }
 
 func (rc *Recommender) LoadBackup() (success bool) {

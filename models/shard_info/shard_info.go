@@ -212,9 +212,6 @@ func (md *Model) GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupI
 }
 
 func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
-	gr.md.shardsMutex.Lock()
-	defer gr.md.shardsMutex.Unlock()
-
 	if len(gr.ShardsByAddr) == len(gr.Shards) {
 		log.Debug("Max number of shards allowed, can't adquire more")
 		return false, CErrMaxShardsByGroup
@@ -245,14 +242,17 @@ func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 
 	shard.Addr = instances.GetHostName()
 	shard.LastTs = time.Now().Unix()
-	gr.ShardsByAddr[instances.GetHostName()] = shard
 
 	// Adquire
 	shard.persist()
+	// Wait just by caution in order to avoid race conditions between
+	// instances on the revious call
+	time.Sleep(time.Millisecond * 200)
 	shard.consistentUpdate()
 
 	if shard.Addr == instances.GetHostName() {
 		go gr.keepAliveOwnedShard(instances.GetHostName())
+		gr.ShardsByAddr[instances.GetHostName()] = shard
 
 		return true, nil
 	}
@@ -309,8 +309,11 @@ func (md *Model) updateInfo() {
 				groupInfo.Shards = shardInfoByGroup[groupInfo.GroupID]
 				groupInfo.ShardsByAddr = make(map[string]*Shard)
 				for _, shard := range groupInfo.Shards {
-					if shard.Addr != "" {
+					if shard.Addr != "" && shard.LastTs + cShardTTL >= time.Now().Unix() {
 						groupInfo.ShardsByAddr[shard.Addr] = shard
+					} else {
+						// This shard ownership has expired, release it
+						shard.Addr = ""
 					}
 				}
 
@@ -333,8 +336,6 @@ func (md *Model) updateInfo() {
 
 			md.groupsMutex.Unlock()
 			md.shardsMutex.Unlock()
-
-			log.Debug("UPDATE Result:", md.groups["userId"]["groupId"])
 		} else {
 			log.Error("Problem trying to get the list of shards from Dynamo DB, Error:", err)
 		}
@@ -356,13 +357,17 @@ func (gr *GroupInfo) addShard(shardId int) (shard *Shard, err error) {
 	return
 }
 
+func (sh *Shard) getDynamoDbKey() string {
+	return fmt.Sprintf("%s:%d", sh.GroupID, sh.ShardID)
+}
+
 func (sh *Shard) consistentUpdate() (success bool) {
 	attKey := &dynamodb.Key{
-		HashKey:  fmt.Sprintf("%d", sh.ShardID),
+		HashKey: sh.getDynamoDbKey(),
 		RangeKey: "",
 	}
 	if data, err := sh.md.shardsTable.GetItemConsistent(attKey, true); err == nil {
-		log.Debug("Consisten update shard:", sh.GroupID, sh.ShardID)
+		log.Debug("Consistent update shard:", sh.GroupID, sh.ShardID)
 		sh.md.shardsMutex.Lock()
 		defer sh.md.shardsMutex.Unlock()
 		if err := json.Unmarshal([]byte(data["info"].Value), &sh); err != nil {
@@ -381,7 +386,7 @@ func (sh *Shard) persist() (err error) {
 	// Persis the shard row
 	if shJson, err := json.Marshal(sh); err == nil {
 		log.Debug("Persisting shard:", sh, string(shJson))
-		keyStr := fmt.Sprintf("%s:%d", sh.GroupID, sh.ShardID)
+		keyStr := sh.getDynamoDbKey()
 		attribs := []dynamodb.Attribute{
 			*dynamodb.NewStringAttribute(cShardsPrimKey, keyStr),
 			*dynamodb.NewStringAttribute("info", string(shJson)),
