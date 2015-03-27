@@ -1,13 +1,13 @@
 package main
 
 import (
-	"os"
 	"fmt"
-	"strings"
 	"github.com/alonsovidales/pit/cfg"
-	"gopkg.in/alecthomas/kingpin.v1"
-	"github.com/alonsovidales/pit/models/shard_info"
 	"github.com/alonsovidales/pit/models/instances"
+	"github.com/alonsovidales/pit/models/shard_info"
+	"gopkg.in/alecthomas/kingpin.v1"
+	"os"
+	"strings"
 	"text/tabwriter"
 )
 
@@ -103,13 +103,12 @@ func listGroups(userId string) {
 	fmt.Fprintln(w, "User ID\tSecret\tGroupID\tMax Score\tTotal Shards\tMax Elements\tMax req sec\tMax Insert Req Sec\tShard owners")
 	fmt.Fprintln(w, "-------\t------\t-------\t---------\t------------\t------------\t-----------\t------------------\t------------")
 
-
 	groups := md.GetAllGroups()
 	for _, groups := range groups {
 		for _, group := range groups {
 			shardOwners := ""
 			for _, shard := range group.Shards {
-				shardOwners += fmt.Sprintf("%s %d %d\t", shard.Addr, shard.LastTs, shard.ReqSec)
+				shardOwners += fmt.Sprintf("%s %d\t", shard.Addr, shard.LastTs)
 			}
 
 			fmt.Fprintf(

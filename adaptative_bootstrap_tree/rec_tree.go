@@ -191,10 +191,14 @@ func (tr *Tree) GetBestRecommendation(values map[uint64]uint8, maxRecs int) (rec
 	//log.Debug("Levels:", len(bestRecsByLevels))
 
 	recMap := make(map[uint64]bool)
+primElemsLoop:
 	for i := len(bestRecsByLevels) - 1; i >= 0 && len(recMap) < maxRecs; i-- {
 		for _, elem := range bestRecsByLevels[i] {
 			if _, classified := values[elem]; !classified || tr.testMode {
 				recMap[elem] = true
+				if len(recMap) >= maxRecs {
+					break primElemsLoop
+				}
 			}
 		}
 	}

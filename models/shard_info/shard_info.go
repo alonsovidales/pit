@@ -21,7 +21,6 @@ const (
 	cShardsPrimKey           = "shardId"
 	cShardsDefaultWRCapacity = 10
 
-	cMaxHoursToStore   = 168 // A week
 	cUpdatePeriod      = 5
 	cUpdateShardPeriod = 2
 	cShardTTL          = 10
@@ -40,14 +39,10 @@ type GroupInfoInt interface {
 }
 
 type Shard struct {
-	Addr   string `json:"addr"`
-	GroupID   string `json:"group_id"`
-	ShardID   int `json:"shard_id"`
-	LastTs int64 `json:"last_ts"`
-
-	ReqHour []uint64 `json:"reqs_hour"`
-	ReqMin  []uint64 `json:"reqs_min"`
-	ReqSec  uint64   `json:"reqs_sec"`
+	Addr    string `json:"addr"`
+	GroupID string `json:"group_id"`
+	ShardID int    `json:"shard_id"`
+	LastTs  int64  `json:"last_ts"`
 
 	md *Model
 }
@@ -72,7 +67,7 @@ type GroupInfo struct {
 
 	// Shards the key of this map is the host name of the owner of the
 	// shard, and the value the shard
-	Shards map[int]*Shard `json:"-"`
+	Shards       map[int]*Shard    `json:"-"`
 	ShardsByAddr map[string]*Shard `json:"-"`
 
 	md *Model
@@ -92,7 +87,7 @@ type Model struct {
 	ModelInt
 
 	// groups by user ID and Group ID
-	groups    map[string]map[string]*GroupInfo
+	groups map[string]map[string]*GroupInfo
 
 	groupsTable     *dynamodb.Table
 	shardsTable     *dynamodb.Table
@@ -100,7 +95,7 @@ type Model struct {
 	shardsTableName string
 	groupsMutex     sync.Mutex
 	shardsMutex     sync.Mutex
-	conn      *dynamodb.Server
+	conn            *dynamodb.Server
 }
 
 func GetModel(prefix, awsRegion string) (md *Model) {
@@ -108,7 +103,7 @@ func GetModel(prefix, awsRegion string) (md *Model) {
 		md = &Model{
 			groupsTableName: fmt.Sprintf("%s_%s", prefix, cGroupsTable),
 			shardsTableName: fmt.Sprintf("%s_%s", prefix, cShardsTable),
-			groups:    make(map[string]map[string]*GroupInfo),
+			groups:          make(map[string]map[string]*GroupInfo),
 			conn: &dynamodb.Server{
 				Auth:   awsAuth,
 				Region: aws.Regions[awsRegion],
@@ -228,9 +223,9 @@ func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 	for _, shard = range gr.Shards {
 		// Double check in order to be as sure as possible that this
 		// shard is still available
-		if shard.Addr == "" || shard.LastTs + cShardTTL < time.Now().Unix() {
+		if shard.Addr == "" || shard.LastTs+cShardTTL < time.Now().Unix() {
 			shard.consistentUpdate()
-			if shard.Addr == "" || shard.LastTs + cShardTTL < time.Now().Unix() {
+			if shard.Addr == "" || shard.LastTs+cShardTTL < time.Now().Unix() {
 				found = true
 				break
 			}
@@ -309,7 +304,7 @@ func (md *Model) updateInfo() {
 				groupInfo.Shards = shardInfoByGroup[groupInfo.GroupID]
 				groupInfo.ShardsByAddr = make(map[string]*Shard)
 				for _, shard := range groupInfo.Shards {
-					if shard.Addr != "" && shard.LastTs + cShardTTL >= time.Now().Unix() {
+					if shard.Addr != "" && shard.LastTs+cShardTTL >= time.Now().Unix() {
 						groupInfo.ShardsByAddr[shard.Addr] = shard
 					} else {
 						// This shard ownership has expired, release it
@@ -345,10 +340,10 @@ func (md *Model) updateInfo() {
 }
 
 func (gr *GroupInfo) addShard(shardId int) (shard *Shard, err error) {
-	shard = &Shard {
+	shard = &Shard{
 		GroupID: gr.GroupID,
 		ShardID: shardId,
-		md: gr.md,
+		md:      gr.md,
 	}
 
 	shard.persist()
@@ -363,7 +358,7 @@ func (sh *Shard) getDynamoDbKey() string {
 
 func (sh *Shard) consistentUpdate() (success bool) {
 	attKey := &dynamodb.Key{
-		HashKey: sh.getDynamoDbKey(),
+		HashKey:  sh.getDynamoDbKey(),
 		RangeKey: "",
 	}
 	if data, err := sh.md.shardsTable.GetItemConsistent(attKey, true); err == nil {

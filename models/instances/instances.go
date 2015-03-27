@@ -2,11 +2,11 @@ package instances
 
 import (
 	"fmt"
-	"sort"
 	"github.com/alonsovidales/pit/log"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -37,6 +37,7 @@ type InstancesModel struct {
 }
 
 type byName []string
+
 func (a byName) Len() int           { return len(a) }
 func (a byName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byName) Less(i, j int) bool { return a[i] < a[j] }

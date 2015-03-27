@@ -14,8 +14,11 @@ import (
 	"time"
 )
 
-const cRecPath = "/get_rec"
-const cCheckHealtyURI = "/check_healty"
+const (
+	cRecPath        = "/get_rec"
+	cCheckHealtyURI = "/check_healty"
+	cMaxMinsToStore = 1440 // A day
+)
 
 type Manager struct {
 	awsRegion      string
@@ -27,6 +30,14 @@ type Manager struct {
 
 	shardsModel    shardinfo.ModelInt
 	instancesModel instances.InstancesModelInt
+	reqSecStats    map[string]*statsReqSec
+}
+
+type statsReqSec struct {
+	bySecStats []uint64
+	byMinStats []uint64
+	queries    uint64
+	inserts    uint64
 }
 
 func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
@@ -35,11 +46,12 @@ func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
 		port:          port,
 		active:        true,
 		finished:      false,
+		reqSecStats:   make(map[string]*statsReqSec),
 
 		shardsModel:    shardinfo.GetModel(prefix, awsRegion),
 		instancesModel: instances.InitAndKeepAlive(prefix, awsRegion, true),
 		awsRegion:      awsRegion,
-		acquiredShards:      make(map[string]recommender.RecommenderInt),
+		acquiredShards: make(map[string]recommender.RecommenderInt),
 	}
 
 	go mg.manage()
@@ -73,6 +85,25 @@ func (mg *Manager) recalculateRecs() {
 	}
 }
 
+func (st *statsReqSec) monitorStats() {
+	c := time.Tick(time.Second)
+	i := 0
+	for range c {
+		st.bySecStats[i] = st.queries
+		i++
+		if i == 60 {
+			i = 0
+			v := uint64(0)
+			for _, q := range st.bySecStats {
+				v += q
+			}
+			st.byMinStats = append(st.byMinStats, v)
+		}
+		st.queries = 0
+		st.inserts = 0
+	}
+}
+
 func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 	userId := r.FormValue("uid")
 	key := r.FormValue("key")
@@ -80,7 +111,7 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.FormValue("id")
 	elemScores := r.FormValue("scores")
 	maxRecs := r.FormValue("max_recs")
-	justAdd := r.FormValue("just_add")
+	justAdd := r.FormValue("insert") != ""
 
 	//log.Debug("New API request: uid:", userId, "key:", key, "groupId:", groupId, "id:", "elemScores:", elemScores, "maxRecs:", maxRecs, "justAdd:", justAdd)
 
@@ -94,6 +125,29 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rec, local := mg.acquiredShards[group.GroupID]; local && rec.GetStatus() == recommender.STATUS_ACTIVE {
+		if _, ok := mg.reqSecStats[group.GroupID]; ok {
+			if justAdd {
+				mg.reqSecStats[group.GroupID].inserts++
+			} else {
+				mg.reqSecStats[group.GroupID].queries++
+			}
+			if (!justAdd && mg.reqSecStats[group.GroupID].queries > group.MaxReqSec) ||
+				(justAdd && mg.reqSecStats[group.GroupID].inserts > group.MaxInsertReqSec) {
+				w.WriteHeader(429)
+				w.Write([]byte("Too Many Requests"))
+
+				return
+			}
+		} else {
+			mg.reqSecStats[group.GroupID] = &statsReqSec{
+				bySecStats: make([]uint64, 60),
+				byMinStats: []uint64{},
+				queries:    0,
+				inserts:    0,
+			}
+			go mg.reqSecStats[group.GroupID].monitorStats()
+		}
+
 		jsonScores := make(map[string]uint8)
 		scores := make(map[uint64]uint8)
 		err = json.Unmarshal([]byte(elemScores), &jsonScores)
@@ -123,15 +177,16 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 
 			return
 		}
-		if len(justAdd) > 0 {
+		if justAdd {
 			rec.AddRecord(uint64(idInt), scores)
 
 			// User not authorised to access to this shard
 			w.WriteHeader(200)
 			w.Write([]byte(fmt.Sprintf(`{
 				"success": true,
+				"reqs_sec": %d
 				"stored_elements": %d
-			}`, rec.GetTotalElements())))
+			}`, mg.reqSecStats[group.GroupID].inserts, rec.GetTotalElements())))
 
 			return
 		} else {
@@ -151,16 +206,18 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte(fmt.Sprintf(`{
 					"success": true,
 					"stored_elements": %d,
+					"reqs_sec": %d,
 					"recs": %s
-				}`, rec.GetTotalElements(), string(result))))
+				}`, rec.GetTotalElements(), mg.reqSecStats[group.GroupID].queries, string(result))))
 			} else {
 				w.WriteHeader(200)
 				w.Write([]byte(fmt.Sprintf(`{
 					"success": false,
 					"status": "Adquiring data",
+					"reqs_sec": %d,
 					"stored_elements": %d,
 					"recs": []
-				}`, rec.GetTotalElements())))
+				}`, mg.reqSecStats[group.GroupID].queries, rec.GetTotalElements())))
 			}
 
 			return
@@ -194,8 +251,8 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		if len(maxRecs) > 0 {
 			vals.Add("max_recs", maxRecs)
 		}
-		if len(justAdd) > 0 {
-			vals.Add("just_add", justAdd)
+		if justAdd {
+			vals.Add("insert", "true")
 		}
 
 		resp, err := http.PostForm(

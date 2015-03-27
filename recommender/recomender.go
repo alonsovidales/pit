@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	STATUS_SARTING       = "STARTING"
-	STATUS_ACTIVE        = "ACTIVE"
-	STATUS_NORECORDS     = "NO_RECORDS"
+	STATUS_SARTING   = "STARTING"
+	STATUS_ACTIVE    = "ACTIVE"
+	STATUS_NORECORDS = "NO_RECORDS"
 
 	cMinRecordsToStart = 100
 	cRecTreeMaxDeep    = 30
