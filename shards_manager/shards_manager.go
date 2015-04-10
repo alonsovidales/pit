@@ -3,6 +3,7 @@ package shardsmanager
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/alonsovidales/pit/cfg"
 	"github.com/alonsovidales/pit/log"
 	"github.com/alonsovidales/pit/models/instances"
 	"github.com/alonsovidales/pit/models/shard_info"
@@ -11,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -38,6 +41,7 @@ type statsReqSec struct {
 	byMinStats []uint64
 	queries    uint64
 	inserts    uint64
+	mutex      sync.Mutex
 }
 
 func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
@@ -124,13 +128,16 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rec, local := mg.acquiredShards[group.GroupID]; local && rec.GetStatus() == recommender.STATUS_ACTIVE {
+	rec, local := mg.acquiredShards[group.GroupID]
+	if local && (rec.GetStatus() == recommender.STATUS_ACTIVE || rec.GetStatus() == recommender.STATUS_NORECORDS) {
 		if _, ok := mg.reqSecStats[group.GroupID]; ok {
+			mg.reqSecStats[group.GroupID].mutex.Lock()
 			if justAdd {
 				mg.reqSecStats[group.GroupID].inserts++
 			} else {
 				mg.reqSecStats[group.GroupID].queries++
 			}
+			mg.reqSecStats[group.GroupID].mutex.Unlock()
 			if (!justAdd && mg.reqSecStats[group.GroupID].queries > group.MaxReqSec) ||
 				(justAdd && mg.reqSecStats[group.GroupID].inserts > group.MaxInsertReqSec) {
 				w.WriteHeader(429)
@@ -227,9 +234,18 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		// TODO Get the results from another instance
 		var shard *shardinfo.Shard
 		var addr string
+
+		hostsVisited := strings.Split(r.FormValue("hosts_visited"), ",")
+		hostsVisited = append(hostsVisited, instances.GetHostName())
+
+		visitedHostsMap := make(map[string]bool)
+		for _, host := range hostsVisited {
+			visitedHostsMap[host] = true
+		}
+
 		// Get a random instance with this shard
 		for addr, shard = range group.ShardsByAddr {
-			if addr != instances.GetHostName() {
+			if _, visited := visitedHostsMap[addr]; !visited {
 				break
 			}
 		}
@@ -242,11 +258,12 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		vals := url.Values{
-			"uid":    {userId},
-			"key":    {key},
-			"group":  {groupId},
-			"id":     {id},
-			"scores": {elemScores},
+			"uid":           {userId},
+			"key":           {key},
+			"group":         {groupId},
+			"id":            {id},
+			"scores":        {elemScores},
+			"hosts_visited": {strings.Join(hostsVisited, ",")},
 		}
 		if len(maxRecs) > 0 {
 			vals.Add("max_recs", maxRecs)
@@ -291,15 +308,33 @@ func (mg *Manager) startApi() {
 	go http.ListenAndServe(fmt.Sprintf(":%d", mg.port), mux)
 }
 
+func (mg *Manager) canAcquireNewShard(group *shardinfo.GroupInfo) bool {
+	maxShardsToAdquire := mg.instancesModel.GetMaxShardsToAdquire(mg.shardsModel.GetTotalNumberOfShards())
+	if maxShardsToAdquire <= len(mg.acquiredShards) {
+		return false
+	}
+
+	totalElems := uint64(0)
+	for _, groups := range mg.shardsModel.GetAllGroups() {
+		for _, groupMem := range groups {
+			totalElems += groupMem.MaxElements
+		}
+	}
+	allocableElems := cfg.GetInt("mem", "instance-mem-gb") * cfg.GetInt("mem", "records-by-gb")
+
+	log.Debug("Max elems to alloc:", allocableElems, "Current elements:", totalElems, "Group Elements:", group.MaxElements)
+
+	return uint64(allocableElems) >= totalElems+group.MaxElements
+}
+
 func (mg *Manager) manage() {
 	go mg.recalculateRecs()
 	go mg.startApi()
 
 	for mg.active {
-		maxShardsToAdquire := mg.instancesModel.GetMaxShardsToAdquire(mg.shardsModel.GetTotalNumberOfShards())
-		if maxShardsToAdquire > len(mg.acquiredShards) {
-			for _, groups := range mg.shardsModel.GetAllGroups() {
-				for _, group := range groups {
+		for _, groups := range mg.shardsModel.GetAllGroups() {
+			for _, group := range groups {
+				if mg.canAcquireNewShard(group) {
 					if acquired, err := group.AcquireShard(); acquired && err == nil {
 						mg.acquiredShard(group)
 					}

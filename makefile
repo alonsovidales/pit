@@ -58,3 +58,13 @@ deploy_dev: deb
 		echo "Deploying new code on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
 		ssh -i $$HOME/.ssh/id_rsa_dev_pit ubuntu@$$SERVER "sudo dpkg -i /tmp/pit.deb" ; \
 	done
+
+deploy_pro: deb
+	@ for SERVER in $$PIT_PRO_SERVERS ; do \
+		echo "Uploading code to server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
+		scp -i $$HOME/.ssh/id_rsa_pro_pit pit.deb root@$$SERVER:/tmp/pit.deb ; \
+	done
+	@ for SERVER in $$PIT_PRO_SERVERS ; do \
+		echo "Deploying new code on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
+		ssh -i $$HOME/.ssh/id_rsa_pro_pit root@$$SERVER "dpkg -i /tmp/pit.deb" ; \
+	done

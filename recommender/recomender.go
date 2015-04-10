@@ -99,6 +99,10 @@ func (rc *Recommender) GetTotalElements() uint64 {
 }
 
 func (rc *Recommender) GetStatus() string {
+	if len(rc.records) < cMinRecordsToStart {
+		rc.status = STATUS_NORECORDS
+	}
+
 	return rc.status
 }
 

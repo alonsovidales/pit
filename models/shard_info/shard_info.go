@@ -257,7 +257,6 @@ func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 
 func (gr *GroupInfo) keepAliveOwnedShard(hostName string) {
 	for {
-		log.Debug("Updating shard TTL for group:", gr.GroupID, hostName)
 		gr.ShardsByAddr[hostName].LastTs = time.Now().Unix()
 		gr.ShardsByAddr[hostName].persist()
 		time.Sleep(time.Second * cUpdateShardPeriod)
@@ -265,7 +264,6 @@ func (gr *GroupInfo) keepAliveOwnedShard(hostName string) {
 }
 
 func (md *Model) updateInfo() {
-	log.Debug("Updating grups info...")
 	// This structure will be used in order to determine what groups are
 	// still in use and what not
 	updatedInfo := make(map[string]map[string]bool)
@@ -380,7 +378,6 @@ func (sh *Shard) consistentUpdate() (success bool) {
 func (sh *Shard) persist() (err error) {
 	// Persis the shard row
 	if shJson, err := json.Marshal(sh); err == nil {
-		log.Debug("Persisting shard:", sh, string(shJson))
 		keyStr := sh.getDynamoDbKey()
 		attribs := []dynamodb.Attribute{
 			*dynamodb.NewStringAttribute(cShardsPrimKey, keyStr),
@@ -391,7 +388,6 @@ func (sh *Shard) persist() (err error) {
 			log.Error("The shard information for the shard of the group:", sh.GroupID, "And Shard ID:", sh.ShardID, " can't be persisted on Dynamo DB, Error:", err)
 			return err
 		}
-		log.Debug("Shard persisted:", sh.ShardID)
 	} else {
 		log.Error("The shard info can't be converted to JSON, Erro:", err)
 
