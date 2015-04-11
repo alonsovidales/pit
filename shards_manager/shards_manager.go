@@ -76,6 +76,23 @@ func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	rec.LoadBackup()
 	rec.RecalculateTree()
 	mg.acquiredShards[group.GroupID] = rec
+
+	go mg.keepUpdateGroup(group.GroupID)
+}
+
+func (mg *Manager) keepUpdateGroup(groupID string) {
+	for {
+		gr := mg.shardsModel.GetGroupByID(groupID)
+		if gr == nil || !gr.IsThisInstanceOwner() {
+			delete(mg.acquiredShards, groupID)
+			return
+		}
+
+		mg.acquiredShards[groupID].SetMaxElements(gr.MaxElements)
+		mg.acquiredShards[groupID].SetMaxScore(gr.MaxScore)
+
+		time.Sleep(time.Second)
+	}
 }
 
 func (mg *Manager) recalculateRecs() {

@@ -36,6 +36,7 @@ var CSharPrevOwnedGroup = errors.New("This instance yet owns a shard on this gro
 type GroupInfoInt interface {
 	AcquireShard() (adquired bool, err error)
 	ReleaseShard()
+	IsThisInstanceOwner() bool
 }
 
 type Shard struct {
@@ -43,6 +44,8 @@ type Shard struct {
 	GroupID string `json:"group_id"`
 	ShardID int    `json:"shard_id"`
 	LastTs  int64  `json:"last_ts"`
+
+	expire bool
 
 	md *Model
 }
@@ -129,40 +132,51 @@ func GetModel(prefix, awsRegion string) (md *Model) {
 }
 
 func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, err error) {
-	if userGroups, ugOk := md.groups[userId]; ugOk {
-		if group, grOk := userGroups[groupId]; grOk {
-			return group, CErrGroupInUse
+	var grOk bool
+	userGroups, ugOk := md.groups[userId]
+	if gr, grOk = userGroups[groupId]; ugOk && grOk {
+		gr.Secret = secret
+		gr.MaxScore = maxScore
+		gr.MaxElements = maxElements
+		gr.MaxReqSec = maxReqSec
+		gr.MaxInsertReqSec = maxInsertReqSec
+
+		if numShards > gr.NumShards {
+			for i := gr.NumShards; i < numShards; i++ {
+				gr.addShard(i)
+			}
 		}
-	}
 
-	gr = &GroupInfo{
-		UserID:  userId,
-		Secret:  secret,
-		GroupID: groupId,
-
-		NumShards: numShards,
-		MaxScore:  maxScore,
-
-		MaxElements:     maxElements,
-		MaxReqSec:       maxReqSec,
-		MaxInsertReqSec: maxInsertReqSec,
-
-		Shards: make(map[int]*Shard),
-
-		md: md,
-	}
-
-	log.Debug("Shards Max Shards:", numShards, gr.NumShards)
-	if userGroups, ugOk := md.groups[userId]; ugOk {
-		userGroups[groupId] = gr
+		gr.NumShards = numShards
 	} else {
-		md.groups[userId] = map[string]*GroupInfo{
-			gr.GroupID: gr,
-		}
-	}
+		gr = &GroupInfo{
+			UserID:  userId,
+			Secret:  secret,
+			GroupID: groupId,
 
-	for i := 0; i < numShards; i++ {
-		gr.addShard(i)
+			NumShards: numShards,
+			MaxScore:  maxScore,
+
+			MaxElements:     maxElements,
+			MaxReqSec:       maxReqSec,
+			MaxInsertReqSec: maxInsertReqSec,
+
+			Shards: make(map[int]*Shard),
+
+			md: md,
+		}
+
+		if userGroups, ugOk := md.groups[userId]; ugOk {
+			userGroups[groupId] = gr
+		} else {
+			md.groups[userId] = map[string]*GroupInfo{
+				gr.GroupID: gr,
+			}
+		}
+
+		for i := 0; i < numShards; i++ {
+			gr.addShard(i)
+		}
 	}
 
 	return gr, gr.persist()
@@ -206,6 +220,12 @@ func (md *Model) GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupI
 	return nil, CErrGroupUserNotFound
 }
 
+func (gr *GroupInfo) IsThisInstanceOwner() bool {
+	_, is := gr.ShardsByAddr[instances.GetHostName()]
+
+	return is
+}
+
 func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 	if len(gr.ShardsByAddr) == len(gr.Shards) {
 		log.Debug("Max number of shards allowed, can't adquire more")
@@ -246,7 +266,7 @@ func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 	shard.consistentUpdate()
 
 	if shard.Addr == instances.GetHostName() {
-		go gr.keepAliveOwnedShard(instances.GetHostName())
+		go gr.md.keepAliveOwnedShard(gr.GroupID, instances.GetHostName())
 		gr.ShardsByAddr[instances.GetHostName()] = shard
 
 		return true, nil
@@ -255,11 +275,16 @@ func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 	return false, errors.New(fmt.Sprint("Race condition trying to adquire the shard:", gr.GroupID, ":", shard.ShardID))
 }
 
-func (gr *GroupInfo) keepAliveOwnedShard(hostName string) {
+func (md *Model) keepAliveOwnedShard(groupID string, hostName string) {
 	for {
-		gr.ShardsByAddr[hostName].LastTs = time.Now().Unix()
-		gr.ShardsByAddr[hostName].persist()
-		time.Sleep(time.Second * cUpdateShardPeriod)
+		gr := md.GetGroupByID(groupID)
+		if shard, ok := gr.ShardsByAddr[hostName]; ok {
+			shard.LastTs = time.Now().Unix()
+			shard.persist()
+			time.Sleep(time.Second * cUpdateShardPeriod)
+		} else {
+			return
+		}
 	}
 }
 
@@ -299,10 +324,17 @@ func (md *Model) updateInfo() {
 				}
 
 				groupInfo.md = md
-				groupInfo.Shards = shardInfoByGroup[groupInfo.GroupID]
+
+				groupInfo.Shards = make(map[int]*Shard)
+				for k, v := range shardInfoByGroup[groupInfo.GroupID] {
+					if k < groupInfo.NumShards {
+						groupInfo.Shards[k] = v
+					}
+				}
+
 				groupInfo.ShardsByAddr = make(map[string]*Shard)
 				for _, shard := range groupInfo.Shards {
-					if shard.Addr != "" && shard.LastTs+cShardTTL >= time.Now().Unix() {
+					if shard.Addr != "" && shard.LastTs+cShardTTL >= time.Now().Unix() && shard.ShardID < groupInfo.NumShards {
 						groupInfo.ShardsByAddr[shard.Addr] = shard
 					} else {
 						// This shard ownership has expired, release it
@@ -342,12 +374,25 @@ func (gr *GroupInfo) addShard(shardId int) (shard *Shard, err error) {
 		GroupID: gr.GroupID,
 		ShardID: shardId,
 		md:      gr.md,
+		expire:  false,
 	}
 
 	shard.persist()
 	gr.Shards[shardId] = shard
 
 	return
+}
+
+func (gr *GroupInfo) delShard(shardId int) {
+	shard := &Shard{
+		GroupID: gr.GroupID,
+		ShardID: shardId,
+		md:      gr.md,
+		expire:  true,
+	}
+
+	shard.persist()
+	delete(gr.Shards, shardId)
 }
 
 func (sh *Shard) getDynamoDbKey() string {
@@ -382,6 +427,10 @@ func (sh *Shard) persist() (err error) {
 		attribs := []dynamodb.Attribute{
 			*dynamodb.NewStringAttribute(cShardsPrimKey, keyStr),
 			*dynamodb.NewStringAttribute("info", string(shJson)),
+		}
+
+		if sh.expire {
+			attribs = append(attribs, *dynamodb.NewStringAttribute("expire", "1"))
 		}
 
 		if _, err := sh.md.shardsTable.PutItem(keyStr, cShardsPrimKey, attribs); err != nil {

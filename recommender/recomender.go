@@ -44,6 +44,11 @@ type RecommenderInt interface {
 	// GetStatus Returns the current status of this recommender system,
 	// the posible statuses can be: ACTIVE, STARTING, NO_RECORDS
 	GetStatus() string
+
+	Destroy()
+
+	SetMaxElements(maxClassif uint64)
+	SetMaxScore(maxScore uint8)
 }
 
 type score struct {
@@ -92,6 +97,17 @@ func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint
 	go rc.checkAndExpire()
 
 	return
+}
+
+func (rc *Recommender) Destroy() {
+}
+
+func (rc *Recommender) SetMaxElements(maxClassif uint64) {
+	rc.maxClassif = maxClassif
+}
+
+func (rc *Recommender) SetMaxScore(maxScore uint8) {
+	rc.maxScore = maxScore
 }
 
 func (rc *Recommender) GetTotalElements() uint64 {
