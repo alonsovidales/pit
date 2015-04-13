@@ -16,7 +16,7 @@ const (
 	cTable             = "instances"
 	cPrimKey           = "hostName"
 	cDefaultWRCapacity = 5
-	cTTL               = 5
+	cTTL               = 30
 )
 
 type InstancesModelInt interface {

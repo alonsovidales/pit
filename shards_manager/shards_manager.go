@@ -19,6 +19,7 @@ import (
 
 const (
 	cRecPath        = "/get_rec"
+	cGroupInfoPath  = "/info"
 	cCheckHealtyURI = "/check_healty"
 	cMaxMinsToStore = 1440 // A day
 )
@@ -37,11 +38,13 @@ type Manager struct {
 }
 
 type statsReqSec struct {
-	bySecStats []uint64
-	byMinStats []uint64
-	queries    uint64
-	inserts    uint64
-	mutex      sync.Mutex
+	RecTreeStatus string   `json:"rec_tree_status"`
+	BySecStats    []uint64 `json:"queries_by_sec"`
+	ByMinStats    []uint64 `json:"queries_by_min"`
+	queries       uint64
+	inserts       uint64
+	mutex         sync.Mutex
+	stop          bool
 }
 
 func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
@@ -78,6 +81,7 @@ func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	mg.acquiredShards[group.GroupID] = rec
 
 	go mg.keepUpdateGroup(group.GroupID)
+	log.Info("Finished acquisition of shard on group:", group.GroupID)
 }
 
 func (mg *Manager) keepUpdateGroup(groupID string) {
@@ -85,6 +89,9 @@ func (mg *Manager) keepUpdateGroup(groupID string) {
 		gr := mg.shardsModel.GetGroupByID(groupID)
 		if gr == nil || !gr.IsThisInstanceOwner() {
 			delete(mg.acquiredShards, groupID)
+			mg.reqSecStats[groupID].stop = true
+			delete(mg.reqSecStats, groupID)
+			log.Info("Shard released on group:", gr.GroupID)
 			return
 		}
 
@@ -98,8 +105,10 @@ func (mg *Manager) keepUpdateGroup(groupID string) {
 func (mg *Manager) recalculateRecs() {
 	for {
 		for _, rec := range mg.acquiredShards {
-			rec.RecalculateTree()
-			rec.SaveBackup()
+			if rec.IsDirty() {
+				rec.RecalculateTree()
+				rec.SaveBackup()
+			}
 		}
 
 		time.Sleep(time.Second * 30)
@@ -110,33 +119,103 @@ func (st *statsReqSec) monitorStats() {
 	c := time.Tick(time.Second)
 	i := 0
 	for range c {
-		st.bySecStats[i] = st.queries
+		st.BySecStats = append(st.BySecStats, st.queries)
 		i++
 		if i == 60 {
 			i = 0
 			v := uint64(0)
-			for _, q := range st.bySecStats {
+			for _, q := range st.BySecStats {
 				v += q
 			}
-			st.byMinStats = append(st.byMinStats, v)
+			st.ByMinStats = append(st.ByMinStats, v)
+			if len(st.ByMinStats) == cMaxMinsToStore {
+				st.ByMinStats = st.ByMinStats[1:]
+			}
+		}
+
+		if len(st.BySecStats) == 60 {
+			st.BySecStats = st.BySecStats[1:]
 		}
 		st.queries = 0
 		st.inserts = 0
+
+		if st.stop {
+			return
+		}
 	}
+}
+
+func (mg *Manager) groupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
+	userId := r.FormValue("uid")
+	key := r.FormValue("key")
+	groupID := r.FormValue("group")
+
+	group, err := mg.shardsModel.GetGroupByUserKeyId(userId, key, groupID)
+	if err != nil {
+		// User not authorised to access to this shard
+		w.WriteHeader(401)
+		w.Write([]byte(fmt.Sprintf("%s", err)))
+
+		return
+	}
+
+	response := make(map[string]*statsReqSec)
+	if _, ok := mg.reqSecStats[groupID]; ok {
+		mg.reqSecStats[groupID].RecTreeStatus = mg.acquiredShards[groupID].GetStatus()
+		response[instances.GetHostName()] = mg.reqSecStats[groupID]
+	}
+
+	// If this is a direct call, visit all the remaining shards in order to
+	// get the necessary info from them
+	if r.FormValue("fw") == "" {
+		for _, shard := range group.ShardsByAddr {
+			if shard.Addr != instances.GetHostName() {
+				vals := url.Values{
+					"uid":   {userId},
+					"key":   {key},
+					"group": {groupID},
+					"fw":    {"1"},
+				}
+				resp, err := http.PostForm(
+					fmt.Sprintf("http://%s:%d%s", shard.Addr, mg.port, cGroupInfoPath),
+					vals)
+
+				if err != nil {
+					log.Error("Can't retreive group information from instance:", shard.Addr, "Error:", err)
+				} else {
+					defer resp.Body.Close()
+					remoteResp, err := ioutil.ReadAll(resp.Body)
+					info := make(map[string]*statsReqSec)
+					if err = json.Unmarshal([]byte(remoteResp), &info); err == nil {
+						for k, v := range info {
+							response[k] = v
+						}
+					} else {
+						log.Error("Problem trying to get group information from host:", shard.Addr)
+					}
+				}
+			}
+		}
+	}
+
+	respJson, _ := json.Marshal(response)
+	// User not authorised to access to this shard
+	w.WriteHeader(200)
+	w.Write(respJson)
 }
 
 func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 	userId := r.FormValue("uid")
 	key := r.FormValue("key")
-	groupId := r.FormValue("group")
+	groupID := r.FormValue("group")
 	id := r.FormValue("id")
 	elemScores := r.FormValue("scores")
 	maxRecs := r.FormValue("max_recs")
 	justAdd := r.FormValue("insert") != ""
 
-	//log.Debug("New API request: uid:", userId, "key:", key, "groupId:", groupId, "id:", "elemScores:", elemScores, "maxRecs:", maxRecs, "justAdd:", justAdd)
+	//log.Debug("New API request: uid:", userId, "key:", key, "groupID:", groupID, "id:", "elemScores:", elemScores, "maxRecs:", maxRecs, "justAdd:", justAdd)
 
-	group, err := mg.shardsModel.GetGroupByUserKeyId(userId, key, groupId)
+	group, err := mg.shardsModel.GetGroupByUserKeyId(userId, key, groupID)
 	if err != nil {
 		// User not authorised to access to this shard
 		w.WriteHeader(401)
@@ -164,8 +243,8 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			mg.reqSecStats[group.GroupID] = &statsReqSec{
-				bySecStats: make([]uint64, 60),
-				byMinStats: []uint64{},
+				BySecStats: []uint64{},
+				ByMinStats: []uint64{},
 				queries:    0,
 				inserts:    0,
 			}
@@ -277,7 +356,7 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		vals := url.Values{
 			"uid":           {userId},
 			"key":           {key},
-			"group":         {groupId},
+			"group":         {groupID},
 			"id":            {id},
 			"scores":        {elemScores},
 			"hosts_visited": {strings.Join(hostsVisited, ",")},
@@ -321,6 +400,7 @@ func (mg *Manager) startApi() {
 		w.Write([]byte("OK"))
 	})
 	mux.HandleFunc(cRecPath, mg.scoresApiHandler)
+	mux.HandleFunc(cGroupInfoPath, mg.groupInfoApiHandler)
 	log.Info("Starting API server on port:", mg.port)
 	go http.ListenAndServe(fmt.Sprintf(":%d", mg.port), mux)
 }

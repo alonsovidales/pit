@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	STATUS_LOADING   = "LOADING"
 	STATUS_SARTING   = "STARTING"
 	STATUS_ACTIVE    = "ACTIVE"
 	STATUS_NORECORDS = "NO_RECORDS"
@@ -49,6 +50,7 @@ type RecommenderInt interface {
 
 	SetMaxElements(maxClassif uint64)
 	SetMaxScore(maxScore uint8)
+	IsDirty() bool
 }
 
 type score struct {
@@ -74,6 +76,9 @@ type Recommender struct {
 	records map[uint64]*score
 	older   *score
 	newer   *score
+	// Indicates if any new record was inserted since the last time the
+	// tree was recalculated
+	dirty bool
 
 	recTree rectree.BoostrapRecTree
 
@@ -92,6 +97,7 @@ func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint
 		status:       STATUS_SARTING,
 		s3Path:       s3Path,
 		s3Region:     aws.Regions[s3Region],
+		dirty:        true,
 	}
 
 	go rc.checkAndExpire()
@@ -126,7 +132,6 @@ func (rc *Recommender) CalcScores(recID uint64, scores map[uint64]uint8, maxToRe
 	rc.AddRecord(recID, scores)
 
 	if rc.recTree == nil {
-		log.Debug("No tree:'(")
 		return
 	}
 	result = rc.recTree.GetBestRecommendation(scores, maxToReturn)
@@ -135,9 +140,10 @@ func (rc *Recommender) CalcScores(recID uint64, scores map[uint64]uint8, maxToRe
 }
 
 func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
-	//log.Debug("Adding:", recID, "Scores:", scores)
 	var sc *score
 	var existingRecord bool
+
+	rc.dirty = true
 	rc.mutex.Lock()
 	if sc, existingRecord = rc.records[recID]; existingRecord {
 		if sc.prev != nil {
@@ -174,6 +180,12 @@ func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
 }
 
 func (rc *Recommender) RecalculateTree() {
+	// No new record was added, so is not necessary to calculate the tree
+	// again
+	if !rc.dirty {
+		return
+	}
+	log.Info("Recalculating tree for:", rc.identifier)
 	if len(rc.records) < cMinRecordsToStart {
 		rc.status = STATUS_NORECORDS
 		return
@@ -191,10 +203,17 @@ func (rc *Recommender) RecalculateTree() {
 	rc.recTree = rectree.ProcessNewTrees(records, cRecTreeMaxDeep, rc.maxScore, cRecTreeNumOfTrees)
 
 	rc.status = STATUS_ACTIVE
+	rc.dirty = false
+}
+
+// IsDirty returns true in case of any record was added since the last time the
+// tree was regenerated
+func (rc *Recommender) IsDirty() bool {
+	return rc.dirty
 }
 
 func (rc *Recommender) LoadBackup() (success bool) {
-	log.Debug("Loading backup from S3...")
+	log.Info("Loading backup from S3:", rc.identifier)
 	auth, err := aws.EnvAuth()
 	if err != nil {
 		log.Error("Problem trying to connect with AWS:", err)
@@ -213,7 +232,7 @@ func (rc *Recommender) LoadBackup() (success bool) {
 	dataFromJson := [][]uint64{}
 	json.Unmarshal(rc.uncompress(jsonData), &dataFromJson)
 
-	log.Debug("Data loaded from S3, len:", len(dataFromJson))
+	log.Info("Data loaded from S3:", rc.identifier, "len:", len(dataFromJson))
 	recs := 0
 	for _, record := range dataFromJson {
 		scores := make(map[uint64]uint8)
@@ -228,7 +247,7 @@ func (rc *Recommender) LoadBackup() (success bool) {
 }
 
 func (rc *Recommender) SaveBackup() {
-	log.Debug("Storing backup on S3...")
+	log.Info("Storing backup on S3:", rc.identifier)
 	rc.mutex.Lock()
 	records := make([][]uint64, len(rc.records))
 	i := 0
@@ -276,11 +295,11 @@ func (rc *Recommender) getS3Path() string {
 func (rc *Recommender) uncompress(data []byte) (result []byte) {
 	gz, err := gzip.NewReader(strings.NewReader(string(data)))
 	if err != nil {
-		log.Debug("The data can't be uncompressed on shard:", rc.identifier, "Error:", err)
+		log.Error("The data can't be uncompressed on shard:", rc.identifier, "Error:", err)
 	}
 	defer gz.Close()
 	if result, err = ioutil.ReadAll(gz); err != nil {
-		log.Debug("The data can't be uncompressed on shard:", rc.identifier, "Error:", err)
+		log.Error("The data can't be uncompressed on shard:", rc.identifier, "Error:", err)
 	}
 
 	return
@@ -290,13 +309,13 @@ func (rc *Recommender) compress(data []byte) (result []byte) {
 	var b bytes.Buffer
 	gz := gzip.NewWriter(&b)
 	if _, err := gz.Write(data); err != nil {
-		log.Debug("The data can't be compressed on shard:", rc.identifier, "Error:", err)
+		log.Error("The data can't be compressed on shard:", rc.identifier, "Error:", err)
 	}
 	if err := gz.Flush(); err != nil {
-		log.Debug("The data can't be compressed on shard:", rc.identifier, "Error:", err)
+		log.Error("The data can't be compressed on shard:", rc.identifier, "Error:", err)
 	}
 	if err := gz.Close(); err != nil {
-		log.Debug("The data can't be compressed on shard:", rc.identifier, "Error:", err)
+		log.Error("The data can't be compressed on shard:", rc.identifier, "Error:", err)
 	}
 
 	return b.Bytes()
