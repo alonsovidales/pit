@@ -5,6 +5,8 @@ import (
 	"github.com/alonsovidales/pit/log"
 	"github.com/alonsovidales/pit/shards_manager"
 	"os"
+	"fmt"
+	"net/http"
 	"os/signal"
 	"runtime"
 	"syscall"
@@ -24,11 +26,21 @@ func main() {
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	muxHttpServer := http.NewServeMux()
+	muxHttpServer.HandleFunc("/check_healty", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	})
+
 	manager := shardsmanager.Init(
+		muxHttpServer,
 		cfg.GetStr("aws", "prefix"),
 		cfg.GetStr("aws", "region"),
 		cfg.GetStr("aws", "s3-backups-path"),
 		int(cfg.GetInt("rec-api", "port")))
+
+	log.Info("Starting API server on port:", int(cfg.GetInt("rec-api", "port")))
+	go http.ListenAndServe(fmt.Sprintf(":%d", int(cfg.GetInt("rec-api", "port"))), muxHttpServer)
 
 	log.Info("System started...")
 	c := make(chan os.Signal, 1)

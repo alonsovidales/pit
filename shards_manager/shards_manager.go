@@ -20,7 +20,6 @@ import (
 const (
 	cRecPath        = "/get_rec"
 	cGroupInfoPath  = "/info"
-	cCheckHealtyURI = "/check_healty"
 	cMaxMinsToStore = 1440 // A day
 )
 
@@ -28,6 +27,7 @@ type Manager struct {
 	awsRegion      string
 	s3BackupsPath  string
 	port           int
+	muxHTTPServer  *http.ServeMux
 	active         bool
 	finished       bool
 	acquiredShards map[string]recommender.RecommenderInt
@@ -47,10 +47,11 @@ type statsReqSec struct {
 	stop          bool
 }
 
-func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
+func Init(muxHTTPServer *http.ServeMux, prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
 	mg = &Manager{
 		s3BackupsPath: s3BackupsPath,
 		port:          port,
+		muxHTTPServer: muxHTTPServer,
 		active:        true,
 		finished:      false,
 		reqSecStats:   make(map[string]*statsReqSec),
@@ -394,15 +395,8 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (mg *Manager) startApi() {
-	mux := http.NewServeMux()
-	mux.HandleFunc(cCheckHealtyURI, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-	})
-	mux.HandleFunc(cRecPath, mg.scoresApiHandler)
-	mux.HandleFunc(cGroupInfoPath, mg.groupInfoApiHandler)
-	log.Info("Starting API server on port:", mg.port)
-	go http.ListenAndServe(fmt.Sprintf(":%d", mg.port), mux)
+	mg.muxHTTPServer.HandleFunc(cRecPath, mg.scoresApiHandler)
+	mg.muxHTTPServer.HandleFunc(cGroupInfoPath, mg.groupInfoApiHandler)
 }
 
 func (mg *Manager) canAcquireNewShard(group *shardinfo.GroupInfo) bool {

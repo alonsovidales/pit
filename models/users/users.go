@@ -8,6 +8,7 @@ import (
 	"github.com/goamz/goamz/dynamodb"
 	"sync"
 	"time"
+	"errors"
 )
 
 const (
@@ -20,14 +21,14 @@ type UsersModelInt interface {
 	RegisterUser(uid string, key string, ip string) (user *User)
 	GetUserInfo(uid string, key string) (user *User)
 	AdminGetUserInfoByID(uid string) (user *User)
-	GetRegisteredUsers(uid string) (users []*User)
+	GetRegisteredUsers() (users []*User)
 }
 
 type UsersInt interface {
 	DisableUser() (persisted bool)
 	EnableUser() (persisted bool)
-	UpdateUser(key string) (err error)
-	AddActivityLog(actionType string, des string) (err error)
+	UpdateUser(key string) (bool)
+	AddActivityLog(actionType string, des string) (bool)
 	GetActivity(actionType string, des string) (activity map[string]*LogLine)
 }
 
@@ -52,7 +53,7 @@ type User struct {
 	uid     string
 	key     string
 	enabled string
-	logs    map[string]*LogLine
+	logs    map[string][]*LogLine
 
 	RegTs int64  `json:"reg_ts"`
 	RegIp string `json:"reg_ip"`
@@ -79,12 +80,16 @@ func GetModel(prefix string, awsRegion string) (um *UsersModel) {
 	return
 }
 
-func (um *UsersModel) RegisterUser(uid string, key string, ip string) *User {
+func (um *UsersModel) RegisterUser(uid string, key string, ip string) (*User, error) {
+	if um.AdminGetUserInfoByID(uid) != nil {
+		return nil, errors.New("Existing user account")
+	}
+
 	user := &User{
 		uid:     uid,
 		key:     key,
 		enabled: "1",
-		logs:    make(map[string]*LogLine),
+		logs:    make(map[string][]*LogLine),
 
 		RegTs: time.Now().Unix(),
 		RegIp: ip,
@@ -93,9 +98,9 @@ func (um *UsersModel) RegisterUser(uid string, key string, ip string) *User {
 	}
 
 	if !user.persist() {
-		return nil
+		return nil, errors.New("Error trying to store the user data")
 	}
-	return user
+	return user, nil
 }
 
 func (um *UsersModel) GetUserInfo(uid string, key string) (user *User) {
@@ -117,7 +122,7 @@ func (um *UsersModel) AdminGetUserInfoByID(uid string) (user *User) {
 			uid:     uid,
 			key:     data["key"].Value,
 			enabled: data["enabled"].Value,
-			logs:    make(map[string]*LogLine),
+			logs:    make(map[string][]*LogLine),
 			md:      um,
 		}
 		if err := json.Unmarshal([]byte(data["info"].Value), &user); err != nil {
@@ -128,24 +133,82 @@ func (um *UsersModel) AdminGetUserInfoByID(uid string) (user *User) {
 			log.Error("Problem trying to unmarshal the user logs for user:", uid, "Error:", err)
 			return nil
 		}
-	} else {
-		log.Error("Problem trying to get the user information for uid:", uid, "Error:", err)
 	}
+
 	return
 }
 
-func (um *UsersModel) GetRegisteredUsers(uid string) (users []*User) {
+func (um *UsersModel) GetRegisteredUsers() (users map[string]*User) {
+	if rows, err := um.table.Scan(nil); err == nil {
+		users = make(map[string]*User)
+		for _, row := range rows {
+			uid := row["uid"].Value
+			user := &User{
+				uid:     uid,
+				key:     row["key"].Value,
+				enabled: row["enabled"].Value,
+				logs:    make(map[string][]*LogLine),
+				md:      um,
+			}
+			if err := json.Unmarshal([]byte(row["info"].Value), &user); err != nil {
+				log.Error("Problem trying to retieve the user information for user:", user.uid, "Error:", err)
+				return nil
+			}
+			if err = json.Unmarshal([]byte(row["logs"].Value), &user.logs); err != nil {
+				log.Error("Problem trying to unmarshal the user logs for user:", user.uid, "Error:", err)
+				return nil
+			}
+			users[uid] = user
+		}
+	}
+
 	return
 }
 
 func (us *User) DisableUser() (persisted bool) {
 	us.enabled = "0"
+
 	return us.persist()
 }
 
 func (us *User) EnableUser() (persisted bool) {
 	us.enabled = "0"
+
 	return us.persist()
+}
+
+func (us *User) UpdateUser(key string) (bool) {
+	us.key = key
+
+	return us.persist()
+}
+
+func (us *User) AddActivityLog(actionType string, desc string) (bool) {
+	if _, ok := us.logs[actionType]; !ok {
+		us.logs[actionType] = []*LogLine{}
+	}
+
+	us.logs[actionType] = append(us.logs[actionType], &LogLine {
+		Ts: time.Now().Unix(),
+		LogType: actionType,
+		Desc: desc,
+	})
+
+	return us.persist()
+}
+
+func (us *User) GetActivity(actionType string, des string) (activity map[string][]*LogLine) {
+	return us.logs
+}
+
+func (um *UsersModel) delTable() {
+	if tableDesc, err := um.conn.DescribeTable(um.tableName); err == nil {
+		if _, err = um.conn.DeleteTable(*tableDesc); err != nil {
+			log.Error("Can't remove Dynamo table:", um.tableName, "Error:", err)
+		}
+	} else {
+		log.Error("Can't remove Dynamo table:", um.tableName, "Error:", err)
+	}
 }
 
 func (us *User) persist() bool {
@@ -167,16 +230,6 @@ func (us *User) persist() bool {
 	}
 
 	return true
-}
-
-func (um *UsersModel) delTable() {
-	if tableDesc, err := um.conn.DescribeTable(um.tableName); err == nil {
-		if _, err = um.conn.DeleteTable(*tableDesc); err != nil {
-			log.Error("Can't remove Dynamo table:", um.tableName, "Error:", err)
-		}
-	} else {
-		log.Error("Can't remove Dynamo table:", um.tableName, "Error:", err)
-	}
 }
 
 func (um *UsersModel) initTable() {
