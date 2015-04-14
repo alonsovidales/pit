@@ -1,19 +1,19 @@
 package users
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 	"github.com/alonsovidales/pit/log"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
-	"sync"
-	"time"
-	"errors"
 	"golang.org/x/crypto/pbkdf2"
 	"os"
-	"crypto/sha256"
-	"encoding/base64"
+	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 	cDefaultWRCapacity = 5
 )
 
-type UsersModelInt interface {
+type ModelInt interface {
 	RegisterUser(uid string, key string, ip string) (user *User)
 	GetUserInfo(uid string, key string) (user *User)
 	AdminGetUserInfoByID(uid string) (user *User)
@@ -32,8 +32,8 @@ type UsersModelInt interface {
 type UsersInt interface {
 	DisableUser() (persisted bool)
 	EnableUser() (persisted bool)
-	UpdateUser(key string) (bool)
-	AddActivityLog(actionType string, des string) (bool)
+	UpdateUser(key string) bool
+	AddActivityLog(actionType string, des string) bool
 	GetAllActivity() (activity map[string]*LogLine)
 }
 
@@ -43,8 +43,8 @@ type LogLine struct {
 	Desc    string `json:"desc"`
 }
 
-type UsersModel struct {
-	UsersModelInt
+type Model struct {
+	ModelInt
 
 	prefix    string
 	secret    []byte
@@ -65,15 +65,15 @@ type User struct {
 	RegIp string `json:"reg_ip"`
 
 	mutex sync.Mutex
-	md    *UsersModel
+	md    *Model
 }
 
-func GetModel(prefix string, awsRegion string) (um *UsersModel) {
+func GetModel(prefix string, awsRegion string) (um *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
-		um = &UsersModel{
+		um = &Model{
 			prefix:    prefix,
 			tableName: fmt.Sprintf("%s_%s", prefix, cTable),
-			secret: []byte(os.Getenv("PIT_SECRET")),
+			secret:    []byte(os.Getenv("PIT_SECRET")),
 			conn: &dynamodb.Server{
 				Auth:   awsAuth,
 				Region: aws.Regions[awsRegion],
@@ -87,7 +87,7 @@ func GetModel(prefix string, awsRegion string) (um *UsersModel) {
 	return
 }
 
-func (um *UsersModel) RegisterUser(uid string, key string, ip string) (*User, error) {
+func (um *Model) RegisterUser(uid string, key string, ip string) (*User, error) {
 	// Sanitize e-mail addr removin all the + Chars in order to avoid fake
 	// duplicated accounts
 	uid = strings.Replace(uid, "+", "", -1)
@@ -98,7 +98,7 @@ func (um *UsersModel) RegisterUser(uid string, key string, ip string) (*User, er
 
 	user := &User{
 		uid:     uid,
-		key:     um.hashPassword(key),
+		key:     um.HashPassword(key),
 		Enabled: "1",
 		logs:    make(map[string][]*LogLine),
 
@@ -114,16 +114,16 @@ func (um *UsersModel) RegisterUser(uid string, key string, ip string) (*User, er
 	return user, nil
 }
 
-func (um *UsersModel) GetUserInfo(uid string, key string) (user *User) {
+func (um *Model) GetUserInfo(uid string, key string) (user *User) {
 	user = um.AdminGetUserInfoByID(uid)
-	if user.key != um.hashPassword(key) || user.Enabled == "0" {
+	if user.key != um.HashPassword(key) || user.Enabled == "0" {
 		return nil
 	}
 
 	return
 }
 
-func (um *UsersModel) AdminGetUserInfoByID(uid string) (user *User) {
+func (um *Model) AdminGetUserInfoByID(uid string) (user *User) {
 	attKey := &dynamodb.Key{
 		HashKey:  uid,
 		RangeKey: "",
@@ -149,7 +149,7 @@ func (um *UsersModel) AdminGetUserInfoByID(uid string) (user *User) {
 	return
 }
 
-func (um *UsersModel) GetRegisteredUsers() (users map[string]*User) {
+func (um *Model) GetRegisteredUsers() (users map[string]*User) {
 	if rows, err := um.table.Scan(nil); err == nil {
 		users = make(map[string]*User)
 		for _, row := range rows {
@@ -188,21 +188,21 @@ func (us *User) EnableUser() (persisted bool) {
 	return us.persist()
 }
 
-func (us *User) UpdateUser(key string) (bool) {
-	us.key = us.md.hashPassword(key)
+func (us *User) UpdateUser(key string) bool {
+	us.key = us.md.HashPassword(key)
 
 	return us.persist()
 }
 
-func (us *User) AddActivityLog(actionType string, desc string) (bool) {
+func (us *User) AddActivityLog(actionType string, desc string) bool {
 	if _, ok := us.logs[actionType]; !ok {
 		us.logs[actionType] = []*LogLine{}
 	}
 
-	us.logs[actionType] = append(us.logs[actionType], &LogLine {
-		Ts: time.Now().Unix(),
+	us.logs[actionType] = append(us.logs[actionType], &LogLine{
+		Ts:      time.Now().Unix(),
 		LogType: actionType,
-		Desc: desc,
+		Desc:    desc,
 	})
 
 	return us.persist()
@@ -212,11 +212,11 @@ func (us *User) GetAllActivity() (activity map[string][]*LogLine) {
 	return us.logs
 }
 
-func (um *UsersModel) hashPassword(password string) string {
+func (um *Model) HashPassword(password string) string {
 	return base64.StdEncoding.EncodeToString(pbkdf2.Key([]byte(password), um.secret, 4096, sha256.Size, sha256.New))
 }
 
-func (um *UsersModel) delTable() {
+func (um *Model) delTable() {
 	if tableDesc, err := um.conn.DescribeTable(um.tableName); err == nil {
 		if _, err = um.conn.DeleteTable(*tableDesc); err != nil {
 			log.Error("Can't remove Dynamo table:", um.tableName, "Error:", err)
@@ -247,7 +247,7 @@ func (us *User) persist() bool {
 	return true
 }
 
-func (um *UsersModel) initTable() {
+func (um *Model) initTable() {
 	pKey := dynamodb.PrimaryKey{dynamodb.NewStringAttribute(cPrimKey, ""), nil}
 	um.table = um.conn.NewTable(um.tableName, pKey)
 

@@ -1,12 +1,12 @@
 package main
 
 import (
+	"github.com/alonsovidales/pit/accounts_manager"
+	"github.com/alonsovidales/pit/api"
 	"github.com/alonsovidales/pit/cfg"
 	"github.com/alonsovidales/pit/log"
 	"github.com/alonsovidales/pit/shards_manager"
 	"os"
-	"fmt"
-	"net/http"
 	"os/signal"
 	"runtime"
 	"syscall"
@@ -26,21 +26,23 @@ func main() {
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	muxHttpServer := http.NewServeMux()
-	muxHttpServer.HandleFunc("/check_healty", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-	})
+	accountsManager := accountsmanager.Init(
+		cfg.GetStr("rec-api", "base-url"),
+		cfg.GetStr("aws", "prefix"),
+		cfg.GetStr("aws", "region"),
+		cfg.GetStr("mail", "addr"),
+		cfg.GetStr("mail", "server"),
+		cfg.GetInt("mail", "port"))
 
-	manager := shardsmanager.Init(
-		muxHttpServer,
+	shardsManager := shardsmanager.Init(
 		cfg.GetStr("aws", "prefix"),
 		cfg.GetStr("aws", "region"),
 		cfg.GetStr("aws", "s3-backups-path"),
 		int(cfg.GetInt("rec-api", "port")))
 
-	log.Info("Starting API server on port:", int(cfg.GetInt("rec-api", "port")))
-	go http.ListenAndServe(fmt.Sprintf(":%d", int(cfg.GetInt("rec-api", "port"))), muxHttpServer)
+	api.Init(
+		shardsManager,
+		accountsManager)
 
 	log.Info("System started...")
 	c := make(chan os.Signal, 1)
@@ -49,5 +51,5 @@ func main() {
 	<-c
 
 	log.Info("Stopping all the services")
-	manager.Stop()
+	shardsManager.Stop()
 }

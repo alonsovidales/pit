@@ -44,8 +44,8 @@ func TestAddGetListUsers(t *testing.T) {
 	if err != nil {
 		t.Error("A new user can't be registered")
 	}
-	usersToBeReturned := map[string]*User {
-		"uid": user,
+	usersToBeReturned := map[string]*User{
+		"uid":  user,
 		"uid1": u1,
 		"uid2": u2,
 	}

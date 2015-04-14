@@ -18,8 +18,12 @@ import (
 )
 
 const (
-	cRecPath        = "/get_rec"
-	cGroupInfoPath  = "/info"
+	CRecPath       = "/rec"
+	CGroupInfoPath = "/info"
+
+	CRegenerateKey  = "/regenerate_shard_key"
+	CChangeShardNum = "/change_shards_num"
+
 	cMaxMinsToStore = 1440 // A day
 )
 
@@ -27,7 +31,6 @@ type Manager struct {
 	awsRegion      string
 	s3BackupsPath  string
 	port           int
-	muxHTTPServer  *http.ServeMux
 	active         bool
 	finished       bool
 	acquiredShards map[string]recommender.RecommenderInt
@@ -47,11 +50,10 @@ type statsReqSec struct {
 	stop          bool
 }
 
-func Init(muxHTTPServer *http.ServeMux, prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
+func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
 	mg = &Manager{
 		s3BackupsPath: s3BackupsPath,
 		port:          port,
-		muxHTTPServer: muxHTTPServer,
 		active:        true,
 		finished:      false,
 		reqSecStats:   make(map[string]*statsReqSec),
@@ -146,7 +148,7 @@ func (st *statsReqSec) monitorStats() {
 	}
 }
 
-func (mg *Manager) groupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
+func (mg *Manager) GroupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
 	userId := r.FormValue("uid")
 	key := r.FormValue("key")
 	groupID := r.FormValue("group")
@@ -178,7 +180,7 @@ func (mg *Manager) groupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
 					"fw":    {"1"},
 				}
 				resp, err := http.PostForm(
-					fmt.Sprintf("http://%s:%d%s", shard.Addr, mg.port, cGroupInfoPath),
+					fmt.Sprintf("http://%s:%d%s", shard.Addr, mg.port, CGroupInfoPath),
 					vals)
 
 				if err != nil {
@@ -205,7 +207,7 @@ func (mg *Manager) groupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(respJson)
 }
 
-func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
+func (mg *Manager) ScoresApiHandler(w http.ResponseWriter, r *http.Request) {
 	userId := r.FormValue("uid")
 	key := r.FormValue("key")
 	groupID := r.FormValue("group")
@@ -370,7 +372,7 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		resp, err := http.PostForm(
-			fmt.Sprintf("http://%s:%d%s", shard.Addr, mg.port, cRecPath),
+			fmt.Sprintf("http://%s:%d%s", shard.Addr, mg.port, CRecPath),
 			vals)
 
 		if err != nil {
@@ -394,11 +396,6 @@ func (mg *Manager) scoresApiHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (mg *Manager) startApi() {
-	mg.muxHTTPServer.HandleFunc(cRecPath, mg.scoresApiHandler)
-	mg.muxHTTPServer.HandleFunc(cGroupInfoPath, mg.groupInfoApiHandler)
-}
-
 func (mg *Manager) canAcquireNewShard(group *shardinfo.GroupInfo) bool {
 	maxShardsToAdquire := mg.instancesModel.GetMaxShardsToAdquire(mg.shardsModel.GetTotalNumberOfShards())
 	if maxShardsToAdquire <= len(mg.acquiredShards) {
@@ -420,7 +417,6 @@ func (mg *Manager) canAcquireNewShard(group *shardinfo.GroupInfo) bool {
 
 func (mg *Manager) manage() {
 	go mg.recalculateRecs()
-	go mg.startApi()
 
 	for mg.active {
 		for _, groups := range mg.shardsModel.GetAllGroups() {
