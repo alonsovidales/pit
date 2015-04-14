@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/alonsovidales/pit/cfg"
 	"github.com/alonsovidales/pit/models/instances"
+	"github.com/alonsovidales/pit/models/users"
 	"github.com/alonsovidales/pit/models/shard_info"
 	"gopkg.in/alecthomas/kingpin.v1"
 	"os"
@@ -34,6 +35,20 @@ func main() {
 
 	cmdInstances := app.Command("instances", "Manage all the instances of the cluster")
 	cmdInstancesList := cmdInstances.Command("list", "Lists all the instances on the clusted")
+
+	cmdUsers := app.Command("users", "Users management")
+	cmdUsersList := cmdUsers.Command("list", "lists all the users")
+
+	cmdUsersAdd := cmdUsers.Command("add", "Adds a new user")
+	cmdUsersAddUID := cmdUsersAdd.Arg("user-ID", "User ID").Required().String()
+	cmdUsersAddKey := cmdUsersAdd.Arg("key", "User Password").Required().String()
+
+	cmdUsersShow := cmdUsers.Command("show", "Shows all the sotred information for a specific user")
+	cmdUsersShowUID := cmdUsersShow.Arg("user-ID", "User ID").Required().String()
+	cmdUsersEnable := cmdUsers.Command("enable", "Enables a disabled user account")
+	cmdUsersEnableUID := cmdUsersEnable.Arg("user-ID", "User ID").Required().String()
+	cmdUsersDisable := cmdUsers.Command("disable", "Disables an enabled user account")
+	cmdUsersDisableUID := cmdUsersDisable.Arg("user-ID", "User ID").Required().String()
 
 	cmdGroups := app.Command("groups", "Manage all the recommendation groups allocated by Pit")
 	cmdGroupsList := cmdGroups.Command("list", "lists all the shards in the system")
@@ -75,8 +90,132 @@ func main() {
 			uint64(*cmdGroupsAddMaxInsertReqSec),
 			uint8(*cmdGroupsAddMaxScore))
 
+	case cmdUsersAdd.FullCommand():
+		addUser(*cmdUsersAddUID, *cmdUsersAddKey)
+
+	case cmdUsersList.FullCommand():
+		listUsers()
+
+	case cmdUsersShow.FullCommand():
+		showUserInfo(*cmdUsersShowUID)
+
+	case cmdUsersEnable.FullCommand():
+		enableUser(*cmdUsersEnableUID)
+
+	case cmdUsersDisable.FullCommand():
+		disableUser(*cmdUsersDisableUID)
+
 	default:
 		fmt.Printf("Not command specified, use: \"%s --help\" to get help\n", strings.Join(os.Args, " "))
+	}
+}
+
+func listUsers() {
+	md := users.GetModel(
+		cfg.GetStr("aws", "prefix"),
+		cfg.GetStr("aws", "region"))
+
+	w := new(tabwriter.Writer)
+	w.Init(os.Stdout, 0, 8, 3, '\t', 0)
+	fmt.Fprintln(w, "Uid\tEnabled\tRegTs\tRegIp\tLogLines")
+	fmt.Fprintln(w, "---\t-------\t-----\t-----\t--------")
+
+	for uid, user := range md.GetRegisteredUsers() {
+		lines := 0
+		for _, v := range user.GetAllActivity() {
+			lines += len(v)
+		}
+		fmt.Fprintf(
+			w,
+			"%s\t%s\t%d\t%s\t%d\n",
+			uid,
+			user.Enabled,
+			user.RegTs,
+			user.RegIp,
+			lines)
+	}
+	w.Flush()
+}
+
+func addUser(cmdUsersAddUID string, cmdUsersAddKey string) {
+	md := users.GetModel(
+		cfg.GetStr("aws", "prefix"),
+		cfg.GetStr("aws", "region"))
+
+	if _, err := md.RegisterUser(cmdUsersAddUID, cmdUsersAddKey, "127.0.0.1"); err != nil {
+		fmt.Println("Problem trying to register the user:", err)
+	} else {
+		fmt.Println("User registered")
+	}
+}
+
+func showUserInfo(uid string) {
+	md := users.GetModel(
+		cfg.GetStr("aws", "prefix"),
+		cfg.GetStr("aws", "region"))
+
+	user := md.AdminGetUserInfoByID(uid)
+	if user == nil {
+		fmt.Println("User Not Found")
+		return
+	}
+
+	fmt.Println("User info:")
+	fmt.Println("ID:", uid)
+	fmt.Println("Enabled:", user.Enabled)
+	fmt.Println("Registered TS:", user.RegTs)
+	fmt.Println("Registered IP:", user.RegIp)
+	fmt.Println("Activity Logs:")
+
+	w := new(tabwriter.Writer)
+	w.Init(os.Stdout, 0, 8, 3, '\t', 0)
+	fmt.Fprintln(w, "Timestamp\tType\tDescripton")
+	fmt.Fprintln(w, "---------\t----\t----------")
+
+	for _, lines := range user.GetAllActivity() {
+		for _, line := range lines {
+			fmt.Fprintf(
+				w,
+				"%d\t%s\t%s\n",
+				line.Ts,
+				line.LogType,
+				line.Desc)
+		}
+	}
+	w.Flush()
+}
+
+func disableUser(uid string) {
+	fmt.Println("The user with user ID:", uid, "will be disabled")
+	if askForConfirmation() {
+		md := users.GetModel(
+			cfg.GetStr("aws", "prefix"),
+			cfg.GetStr("aws", "region"))
+
+		user := md.AdminGetUserInfoByID(uid)
+		if user != nil {
+			user.DisableUser()
+			fmt.Println("User Disabled")
+		} else {
+			fmt.Println("User not found")
+		}
+	}
+}
+
+func enableUser(uid string) {
+	fmt.Println("The user with user ID:", uid, "will be enabled")
+	if askForConfirmation() {
+		md := users.GetModel(
+			cfg.GetStr("aws", "prefix"),
+			cfg.GetStr("aws", "region"))
+
+		user := md.AdminGetUserInfoByID(uid)
+		if user != nil {
+			user.EnableUser()
+			fmt.Println("User Enabled")
+		} else {
+			fmt.Println("User not found")
+		}
 	}
 }
 

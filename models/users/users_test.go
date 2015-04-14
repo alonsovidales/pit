@@ -30,7 +30,7 @@ func TestAddGetListUsers(t *testing.T) {
 		t.Error("Duplicated user registration")
 	}
 
-	if user.uid != "uid" || user.key != "key" {
+	if user.uid != "uid" {
 		t.Error("The user information stored doesn't corresponds with the returned, User:", user)
 	}
 

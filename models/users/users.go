@@ -3,12 +3,17 @@ package users
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"github.com/alonsovidales/pit/log"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
 	"sync"
 	"time"
 	"errors"
+	"golang.org/x/crypto/pbkdf2"
+	"os"
+	"crypto/sha256"
+	"encoding/base64"
 )
 
 const (
@@ -29,7 +34,7 @@ type UsersInt interface {
 	EnableUser() (persisted bool)
 	UpdateUser(key string) (bool)
 	AddActivityLog(actionType string, des string) (bool)
-	GetActivity(actionType string, des string) (activity map[string]*LogLine)
+	GetAllActivity() (activity map[string]*LogLine)
 }
 
 type LogLine struct {
@@ -42,6 +47,7 @@ type UsersModel struct {
 	UsersModelInt
 
 	prefix    string
+	secret    []byte
 	tableName string
 	conn      *dynamodb.Server
 	table     *dynamodb.Table
@@ -52,7 +58,7 @@ type User struct {
 
 	uid     string
 	key     string
-	enabled string
+	Enabled string `json:"-"`
 	logs    map[string][]*LogLine
 
 	RegTs int64  `json:"reg_ts"`
@@ -67,6 +73,7 @@ func GetModel(prefix string, awsRegion string) (um *UsersModel) {
 		um = &UsersModel{
 			prefix:    prefix,
 			tableName: fmt.Sprintf("%s_%s", prefix, cTable),
+			secret: []byte(os.Getenv("PIT_SECRET")),
 			conn: &dynamodb.Server{
 				Auth:   awsAuth,
 				Region: aws.Regions[awsRegion],
@@ -81,14 +88,18 @@ func GetModel(prefix string, awsRegion string) (um *UsersModel) {
 }
 
 func (um *UsersModel) RegisterUser(uid string, key string, ip string) (*User, error) {
+	// Sanitize e-mail addr removin all the + Chars in order to avoid fake
+	// duplicated accounts
+	uid = strings.Replace(uid, "+", "", -1)
+
 	if um.AdminGetUserInfoByID(uid) != nil {
 		return nil, errors.New("Existing user account")
 	}
 
 	user := &User{
 		uid:     uid,
-		key:     key,
-		enabled: "1",
+		key:     um.hashPassword(key),
+		Enabled: "1",
 		logs:    make(map[string][]*LogLine),
 
 		RegTs: time.Now().Unix(),
@@ -105,7 +116,7 @@ func (um *UsersModel) RegisterUser(uid string, key string, ip string) (*User, er
 
 func (um *UsersModel) GetUserInfo(uid string, key string) (user *User) {
 	user = um.AdminGetUserInfoByID(uid)
-	if user.key != key || user.enabled == "0" {
+	if user.key != um.hashPassword(key) || user.Enabled == "0" {
 		return nil
 	}
 
@@ -121,7 +132,7 @@ func (um *UsersModel) AdminGetUserInfoByID(uid string) (user *User) {
 		user = &User{
 			uid:     uid,
 			key:     data["key"].Value,
-			enabled: data["enabled"].Value,
+			Enabled: data["enabled"].Value,
 			logs:    make(map[string][]*LogLine),
 			md:      um,
 		}
@@ -146,7 +157,7 @@ func (um *UsersModel) GetRegisteredUsers() (users map[string]*User) {
 			user := &User{
 				uid:     uid,
 				key:     row["key"].Value,
-				enabled: row["enabled"].Value,
+				Enabled: row["enabled"].Value,
 				logs:    make(map[string][]*LogLine),
 				md:      um,
 			}
@@ -166,19 +177,19 @@ func (um *UsersModel) GetRegisteredUsers() (users map[string]*User) {
 }
 
 func (us *User) DisableUser() (persisted bool) {
-	us.enabled = "0"
+	us.Enabled = "0"
 
 	return us.persist()
 }
 
 func (us *User) EnableUser() (persisted bool) {
-	us.enabled = "0"
+	us.Enabled = "1"
 
 	return us.persist()
 }
 
 func (us *User) UpdateUser(key string) (bool) {
-	us.key = key
+	us.key = us.md.hashPassword(key)
 
 	return us.persist()
 }
@@ -197,8 +208,12 @@ func (us *User) AddActivityLog(actionType string, desc string) (bool) {
 	return us.persist()
 }
 
-func (us *User) GetActivity(actionType string, des string) (activity map[string][]*LogLine) {
+func (us *User) GetAllActivity() (activity map[string][]*LogLine) {
 	return us.logs
+}
+
+func (um *UsersModel) hashPassword(password string) string {
+	return base64.StdEncoding.EncodeToString(pbkdf2.Key([]byte(password), um.secret, 4096, sha256.Size, sha256.New))
 }
 
 func (um *UsersModel) delTable() {
@@ -220,7 +235,7 @@ func (us *User) persist() bool {
 		*dynamodb.NewStringAttribute("key", us.key),
 		*dynamodb.NewStringAttribute("info", string(userJsonInfo)),
 		*dynamodb.NewStringAttribute("logs", string(userJsonLogs)),
-		*dynamodb.NewStringAttribute("enabled", string(us.enabled)),
+		*dynamodb.NewStringAttribute("enabled", string(us.Enabled)),
 	}
 
 	if _, err := us.md.table.PutItem(us.uid, cPrimKey, attribs); err != nil {
