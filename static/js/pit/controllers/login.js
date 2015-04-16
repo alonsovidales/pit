@@ -3,7 +3,7 @@ var LoginController = (function() {
 	var key = localStorage.getItem("key");
 
 	var loggedIn = function() {
-		return (user && key);
+		return (user && key && user !== "undefined" && key !== "undefined");
 	};
 
 	var loginForm = $("#login-form");
@@ -13,36 +13,30 @@ var LoginController = (function() {
 	var loginIncorrect = $("#login-incorrect");
 	var loginEmail = $("#login-email");
 	var loginPass = $("#login-pass");
+	var accountName = $("#account-name-top");
 	var accountPannelLink = $("#account-pannel-link");
 
 	var loginQuery = function(loginUser, loginKey) {
-		$.ajax({
-			type: 'POST',
-			url: cAPIBase + '/get_groups_by_user',
-			data: {
-				u: loginUser,
-				uk: loginKey,
-			},
-			success: function(data) {
-				user = loginEmail.val();
-				key = loginPass.val();
-				loginEmail.val('');
-				loginPass.val('');
-				loginIncorrect.hide();
-				doLogin();
+		GroupsController.getGroupsInfo(function(data) {
+			user = loginUser;
+			key = loginKey;
+			loginEmail.val('');
+			loginPass.val('');
+			loginIncorrect.hide();
+			doLogin();
 
-				accountPannelLink.show();
-			},
-			error: function() {
-				loginIncorrect.show();
-			},
-			dataType: 'json',
+			accountPannelLink.show();
+		}, function () {
+			logOut();
+			loginIncorrect.show();
 		});
 	};
 
 	var doLogin = function () {
 		localStorage.setItem("user", user);
 		localStorage.setItem("key", key);
+		accountName.text(user);
+		accountName.show();
 		logOutDiv.show();
 		loginForm.hide();
 	};
@@ -50,6 +44,7 @@ var LoginController = (function() {
 	var logOut = function () {
 		localStorage.removeItem("user");
 		localStorage.removeItem("key");
+		accountName.hide();
 		logOutDiv.hide();
 		loginForm.show();
 		window.location = 'index.html';
@@ -58,8 +53,10 @@ var LoginController = (function() {
 	logOutButton.click(logOut);
 
 	if (loggedIn()) {
-		doLogin();
-		loginQuery(user, key);
+		$(function() {
+			doLogin();
+			loginQuery(user, key);
+		});
 	} else {
 		loginForm.show();
 		loginForm.submit(function(event) {
@@ -67,4 +64,13 @@ var LoginController = (function() {
 			event.preventDefault();
 		});
 	}
+
+	return {
+		getUser: function() {
+			return user;
+		},
+		getKey: function() {
+			return key;
+		}
+	};
 })();

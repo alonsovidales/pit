@@ -10,6 +10,7 @@
         <!-- Bootstrap -->
         <link href="css/bootstrap.min.css" rel="stylesheet">
         <link href="css/styles.css" rel="stylesheet">
+        <link href="css/dashboard.css" rel="stylesheet">
 
         <!--[if lt IE 9]>
             <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
@@ -20,7 +21,7 @@
         <nav class="navbar navbar-inverse navbar-fixed-top">
             <div class="container">
                 <div class="navbar-header">
-                    <a class="navbar-brand" href="#">Pit</a>
+                    <a class="navbar-brand" href="index.html">Pit</a>
                 </div>
                 <div id="navbar" class="navbar-collapse collapse">
                     <ul class="nav navbar-nav">
@@ -43,6 +44,7 @@
                         <!--<button type="submit" class="btn btn-primary">Sign up</button>-->
                     </form>
                     <div class="navbar-form navbar-right" id="log-out-div">
+                        <small id="account-name-top"></small>
                         <button type="submit" id="log-out-button" class="btn btn-danger">Log out</button>
                     </div>
                 </div>
@@ -53,34 +55,109 @@
             <div class="row">
                 <div class="col-sm-3 col-md-2 sidebar">
                     <ul class="nav nav-sidebar">
-                        <li class="active"><a href="#">Overview <span class="sr-only">(current)</span></a></li>
-                        <li><a href="#">Reports</a></li>
-                        <li><a href="#">Analytics</a></li>
-                        <li><a href="#">Export</a></li>
-                    </ul>
-                    <ul class="nav nav-sidebar">
-                        <li><a href="">Nav item</a></li>
-                        <li><a href="">Nav item again</a></li>
-                        <li><a href="">One more nav</a></li>
-                        <li><a href="">Another nav item</a></li>
-                        <li><a href="">More navigation</a></li>
-                    </ul>
-                    <ul class="nav nav-sidebar">
-                        <li><a href="">Nav item again</a></li>
-                        <li><a href="">One more nav</a></li>
-                        <li><a href="">Another nav item</a></li>
+                        <li class="active"><a href="#">Groups / Shards Manager <span class="sr-only">(current)</span></a></li>
+                        <li><a href="account-logs.htm">Account / Logs</a></li>
+                        <li class="disabled"><a href="#">Billing (Under construction)</a></li>
                     </ul>
                 </div>
                 <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
-                    <h1 class="page-header">Dashboard</h1>
+                    <h1 class="page-header">Groups / Shards Manager</h1>
+                    <div id="shads-container">
+                    </div>
                 </div>
             </div>
         </div>
 
+        <script id="groups-template" type="text/x-handlebars-template">
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    <h3 class="panel-title" id="panel-title">
+                            {{group_id}}
+                    </h3>
+                </div>
+                <div class="panel-body">
+                    <ul class="group-desc">
+                        <li>
+                            <strong>Group Key:</strong>
+                            <span id="group-{{group_id}}-key">{{secret}}</span> <button type="button" class="btn btn-xs btn-danger" id="group-button-{{group_id}}-key">Regenerate</button>
+                        </li>
+                        <li>
+                            <strong>Max Request by second and shard:</strong>
+                            <span id="group-{{group_id}}-req-sec">{{max_req_sec}}</span>
+                        </li>
+                        <li>
+                            <strong>Max Insert Requests by second and shard:</strong><span id="group-{{group_id}}-ins-req-sec">{{max_insert_serq}}</span>
+                        </li>
+                        <li>
+                            <strong>Max number of elements:</strong>
+                            <span id="group-{{group_id}}-max-elements">{{max_elems}}</span>
+                        </li>
+                        <li>
+                            <strong>Max Score:</strong>
+                            <span id="group-{{group_id}}-max-score">{{max_score}}</span>
+                        </li>
+                    </ul>
+
+                    <h5>Shards Status:</h5>
+                    <div class="shards-container">
+                        <div class="input-group input-group-sm group-shards-by-group">
+                            <span class="input-group-addon" id="basic-addon1">Number of active Shards</span>
+                            <input type="text" id="shards-update-txt-{{group_id}}" class="form-control" placeholder="0" aria-describedby="basic-addon1" value="{{tot_shards}}">
+                            <span class="input-group-btn" id="shards-update-buttn-{{group_id}}">
+                                <button class="btn btn-default" type="button">Update</button>
+                            </span>
+                        </div>
+                        <div id="group-shards-{{group_id}}"></div>
+                    </div>
+                </div>
+            </div>
+        </script>
+
+        <script id="shards-template" type="text/x-handlebars-template">
+            <nav class="navbar navbar-default shards-pannel">
+                <div class="panel-heading">
+                    <h6 class="panel-title" id="panel-title">
+                        {{shard_id_full}} <span class="label label-{{status_level}} status-shard-label" id="shard-status-{{group_id}}-{{shard_id}}">{{shard_status}}</span>
+                    </h6>
+                </div>
+                <ul>
+                    <div>
+                        <strong>Elements stored:</strong> <span id="shard-elems-stored-{{group_id}}-{{shard_id}}">{{elems_stored}}</span>
+                        <div class="progress progress-bar-shard">
+                            <div id="shard-elems-stored-prog-bar-{{group_id}}-{{shard_id}}" class="progress-bar" role="progressbar" aria-valuenow="2" aria-valuemin="0" aria-valuemax="100" style="width: {{perc_stored}}%;">
+                                {{perc_stored}}%
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <br />
+                        <strong>Requests by sec:</strong> <span id="shard-req-sec-{{group_id}}-{{shard_id}}">{{reqs_sec}}</span>
+                        <div class="progress progress-bar-shard">
+                            <div id="shard-req-sec-prog-bar-{{group_id}}-{{shard_id}}" class="progress-bar" role="progressbar" aria-valuenow="2" aria-valuemin="0" aria-valuemax="100" style="width: {{perc_reqs}}%;">
+                                {{perc_reqs}}%
+                            </div>
+                        </div>
+
+                        <h6>Reqs/sec:</h6>
+                        <div id="req-sec-stats-{{group_id}}-{{shard_id}}" class="animated-char"></div>
+                        <h6>Reqs/min:</h6>
+                        <div id="req-min-stats-{{group_id}}-{{shard_id}}" class="animated-char"></div>
+                    </div>
+                </ul>
+            </nav>
+        </script>
+
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+        <script src="js/highcharts.js"></script>
+        <script src="js/handlebars-v3.0.1.js"></script>
+
         <script src="js/bootstrap.min.js"></script>
         <script src="js/pit/bootstrap.js"></script>
-        <script src="js/pit/controllers/shards.js"></script>
         <script src="js/pit/controllers/login.js"></script>
+        <script src="js/pit/controllers/groups.js"></script>
+
+        <script>
+            GroupsController.init();
+        </script>
     </body>
 </html>

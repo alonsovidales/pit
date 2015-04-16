@@ -1,4 +1,4 @@
-body {
+body.info {
         background-color: #eaeaea;
 }
 
@@ -16,4 +16,46 @@ body {
 
 #login-incorrect {
     display: none;
+}
+
+#account-name-top {
+        display: none;
+        color: #cccccc;
+        padding-right: 10px;
+}
+
+.group-shards-by-group {
+        width: 260px;
+}
+
+.shards-pannel {
+        width: 100%;
+        height: 600px;
+        margin-top: 10px;
+}
+
+.progress-bar-shard {
+        width: 50%;
+        display: inline;
+        float: right;
+        margin-right: 20px;
+}
+
+ul.group-desc {
+    padding: 10px;
+    list-style-type: none;
+}
+
+.animated-char {
+        width: 95%;
+        margin: 0;
+        height: 200px;
+}
+
+.shards-container {
+    padding-left: 10px;
+}
+
+.status-shard-label {
+        float: right;
 }

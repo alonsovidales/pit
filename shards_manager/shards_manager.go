@@ -47,6 +47,7 @@ type Manager struct {
 }
 
 type statsReqSec struct {
+	StoredElements uint64  `json:"stored_elements"`
 	RecTreeStatus string   `json:"rec_tree_status"`
 	BySecStats    []uint64 `json:"queries_by_sec"`
 	ByMinStats    []uint64 `json:"queries_by_min"`
@@ -86,9 +87,16 @@ func (mg *Manager) IsFinished() bool {
 
 func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	rec := recommender.NewShard(mg.s3BackupsPath, group.GroupID, group.MaxElements, group.MaxScore, mg.awsRegion)
-	rec.LoadBackup()
-	rec.RecalculateTree()
 	mg.acquiredShards[group.GroupID] = rec
+	mg.reqSecStats[group.GroupID] = &statsReqSec{
+		BySecStats: []uint64{},
+		ByMinStats: []uint64{},
+		queries:    0,
+		inserts:    0,
+	}
+	go mg.reqSecStats[group.GroupID].monitorStats()
+
+	rec.LoadBackup()
 
 	go mg.keepUpdateGroup(group.GroupID)
 	log.Info("Finished acquisition of shard on group:", group.GroupID)
@@ -143,7 +151,7 @@ func (st *statsReqSec) monitorStats() {
 			}
 		}
 
-		if len(st.BySecStats) == 60 {
+		if len(st.BySecStats) == 61 {
 			st.BySecStats = st.BySecStats[1:]
 		}
 		st.queries = 0
@@ -174,6 +182,7 @@ func (mg *Manager) GroupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
 	response := make(map[string]*statsReqSec)
 	if _, ok := mg.reqSecStats[groupID]; ok {
 		mg.reqSecStats[groupID].RecTreeStatus = mg.acquiredShards[groupID].GetStatus()
+		mg.reqSecStats[groupID].StoredElements = mg.acquiredShards[groupID].GetStoredElements()
 		response[instances.GetHostName()] = mg.reqSecStats[groupID]
 	}
 
@@ -422,29 +431,19 @@ func (mg *Manager) ScoresApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	rec, local := mg.acquiredShards[group.GroupID]
 	if local && (rec.GetStatus() == recommender.STATUS_ACTIVE || rec.GetStatus() == recommender.STATUS_NORECORDS) {
-		if _, ok := mg.reqSecStats[group.GroupID]; ok {
-			mg.reqSecStats[group.GroupID].mutex.Lock()
-			if justAdd {
-				mg.reqSecStats[group.GroupID].inserts++
-			} else {
-				mg.reqSecStats[group.GroupID].queries++
-			}
-			mg.reqSecStats[group.GroupID].mutex.Unlock()
-			if (!justAdd && mg.reqSecStats[group.GroupID].queries > group.MaxReqSec) ||
-				(justAdd && mg.reqSecStats[group.GroupID].inserts > group.MaxInsertReqSec) {
-				w.WriteHeader(429)
-				w.Write([]byte("Too Many Requests"))
-
-				return
-			}
+		mg.reqSecStats[group.GroupID].mutex.Lock()
+		if justAdd {
+			mg.reqSecStats[group.GroupID].inserts++
 		} else {
-			mg.reqSecStats[group.GroupID] = &statsReqSec{
-				BySecStats: []uint64{},
-				ByMinStats: []uint64{},
-				queries:    0,
-				inserts:    0,
-			}
-			go mg.reqSecStats[group.GroupID].monitorStats()
+			mg.reqSecStats[group.GroupID].queries++
+		}
+		mg.reqSecStats[group.GroupID].mutex.Unlock()
+		if (!justAdd && mg.reqSecStats[group.GroupID].queries > group.MaxReqSec) ||
+			(justAdd && mg.reqSecStats[group.GroupID].inserts > group.MaxInsertReqSec) {
+			w.WriteHeader(429)
+			w.Write([]byte("Too Many Requests"))
+
+			return
 		}
 
 		jsonScores := make(map[string]uint8)

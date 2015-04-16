@@ -45,6 +45,7 @@ type RecommenderInt interface {
 	// GetStatus Returns the current status of this recommender system,
 	// the posible statuses can be: ACTIVE, STARTING, NO_RECORDS
 	GetStatus() string
+	GetStoredElements() uint64
 
 	Destroy()
 
@@ -120,11 +121,11 @@ func (rc *Recommender) GetTotalElements() uint64 {
 	return rc.totalClassif
 }
 
-func (rc *Recommender) GetStatus() string {
-	if len(rc.records) < cMinRecordsToStart {
-		rc.status = STATUS_NORECORDS
-	}
+func (rc *Recommender) GetStoredElements() uint64 {
+	return rc.totalClassif;
+}
 
+func (rc *Recommender) GetStatus() string {
 	return rc.status
 }
 
@@ -183,6 +184,7 @@ func (rc *Recommender) RecalculateTree() {
 	// No new record was added, so is not necessary to calculate the tree
 	// again
 	if !rc.dirty {
+		log.Info("Tree not dirty:", rc.identifier)
 		return
 	}
 	log.Info("Recalculating tree for:", rc.identifier)
@@ -203,6 +205,7 @@ func (rc *Recommender) RecalculateTree() {
 	rc.recTree = rectree.ProcessNewTrees(records, cRecTreeMaxDeep, rc.maxScore, cRecTreeNumOfTrees)
 
 	rc.status = STATUS_ACTIVE
+	log.Info("Tree recalculation finished:", rc.identifier)
 	rc.dirty = false
 }
 
