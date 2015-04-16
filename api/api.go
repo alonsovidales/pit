@@ -16,15 +16,17 @@ const (
 type Api struct {
 	shardsManager   *shardsmanager.Manager
 	accountsManager *accountsmanager.Manager
+	staticPath      string
 
 	muxHttpServer *http.ServeMux
 }
 
-func Init(shardsManager *shardsmanager.Manager, accountsManager *accountsmanager.Manager) (api *Api) {
+func Init(shardsManager *shardsmanager.Manager, accountsManager *accountsmanager.Manager, staticPath string) (api *Api) {
 	api = &Api{
 		shardsManager:   shardsManager,
 		accountsManager: accountsManager,
 		muxHttpServer:   http.NewServeMux(),
+		staticPath:      staticPath,
 	}
 
 	api.registerApis()
@@ -42,11 +44,22 @@ func (api *Api) registerApis() {
 	})
 
 	api.muxHttpServer.HandleFunc(shardsmanager.CRecPath, api.shardsManager.ScoresApiHandler)
+
 	api.muxHttpServer.HandleFunc(shardsmanager.CGroupInfoPath, api.shardsManager.GroupInfoApiHandler)
 
-	api.muxHttpServer.HandleFunc(accountsmanager.CRecPath, api.accountsManager.Register)
+	api.muxHttpServer.HandleFunc(shardsmanager.CRegenerateGroupKey, api.shardsManager.RegenerateGroupKey)
+	api.muxHttpServer.HandleFunc(shardsmanager.CGetGroupsByUser, api.shardsManager.GetGroupsByUser)
+	api.muxHttpServer.HandleFunc(shardsmanager.CAddUpdateGroup, api.shardsManager.AddUpdateGroup)
+	api.muxHttpServer.HandleFunc(shardsmanager.CSetShardsGroup, api.shardsManager.SetShards)
+
+	api.muxHttpServer.HandleFunc(accountsmanager.CRegisterPath, api.accountsManager.Register)
 	api.muxHttpServer.HandleFunc(accountsmanager.CVerifyPath, api.accountsManager.Verify)
+	api.muxHttpServer.HandleFunc(accountsmanager.CLogsPath, api.accountsManager.Logs)
 	api.muxHttpServer.HandleFunc(accountsmanager.CRecoverPassPath, api.accountsManager.RecoverPass)
-	api.muxHttpServer.HandleFunc(accountsmanager.CInfoPath, api.accountsManager.Info)
+	api.muxHttpServer.HandleFunc(accountsmanager.CChangePass, api.accountsManager.ChangePass)
 	api.muxHttpServer.HandleFunc(accountsmanager.CDisablePath, api.accountsManager.Disable)
+
+	api.muxHttpServer.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, api.staticPath+r.URL.Path[1:])
+	})
 }

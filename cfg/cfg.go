@@ -31,7 +31,12 @@ func GetStr(sec, subsec string) string {
 	return loadSection(sec).ValueOf(subsec)
 }
 
-// GetInt Returns the value of the section, subsection as integer
+// GetUint64 Returns the value of the section, subsection as uint64
+func GetUint64(sec, subsec string) (v uint64) {
+	return uint64(GetInt(sec, subsec))
+}
+
+// GetInt Returns the value of the section, subsection as int64
 func GetInt(sec, subsec string) (v int64) {
 	if v, err := strconv.ParseInt(loadSection(sec).ValueOf(subsec), 10, 64); err == nil {
 		return v

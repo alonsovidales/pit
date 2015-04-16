@@ -1,0 +1,19 @@
+body {
+        background-color: #eaeaea;
+}
+
+#log-out-div {
+    display: none;
+}
+
+#login-form {
+    display: none;
+}
+
+#account-pannel-link {
+    display: none;
+}
+
+#login-incorrect {
+    display: none;
+}

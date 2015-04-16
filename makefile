@@ -35,11 +35,13 @@ deb:
 	@echo "$(OK_COLOR)==> Building DEB$(NO_COLOR)"
 	mkdir -p dist_package/usr/local/bin
 	mkdir -p dist_package/var/log/pit
+	mkdir -p dist_package/var/www
 	GOOS=linux GOARCH=amd64 go build -o dist_package/usr/local/bin/pit bin/pit.go
 	GOOS=linux GOARCH=amd64 go build -o dist_package/usr/local/bin/pit-cli bin/pit-cli.go
 	rm -rf tmp
 	mkdir tmp
 	cp -a etc dist_package/
+	cp -a static/* dist_package/var/www/
 
 	cd dist_package; tar czvf ../tmp/data.tar.gz *
 

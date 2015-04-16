@@ -7,7 +7,9 @@ import (
 	"github.com/alonsovidales/pit/log"
 	"github.com/alonsovidales/pit/models/instances"
 	"github.com/alonsovidales/pit/models/shard_info"
+	"github.com/alonsovidales/pit/models/users"
 	"github.com/alonsovidales/pit/recommender"
+	"github.com/nu7hatch/gouuid"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -21,8 +23,11 @@ const (
 	CRecPath       = "/rec"
 	CGroupInfoPath = "/info"
 
-	CRegenerateKey  = "/regenerate_shard_key"
-	CChangeShardNum = "/change_shards_num"
+	// User required actions
+	CRegenerateGroupKey = "/generate_group_key"
+	CGetGroupsByUser    = "/get_groups_by_user"
+	CAddUpdateGroup     = "/add_group"
+	CSetShardsGroup     = "/set_shards_group"
 
 	cMaxMinsToStore = 1440 // A day
 )
@@ -38,6 +43,7 @@ type Manager struct {
 	shardsModel    shardinfo.ModelInt
 	instancesModel instances.InstancesModelInt
 	reqSecStats    map[string]*statsReqSec
+	usersModel     users.ModelInt
 }
 
 type statsReqSec struct {
@@ -50,7 +56,7 @@ type statsReqSec struct {
 	stop          bool
 }
 
-func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
+func Init(prefix, awsRegion, s3BackupsPath string, port int, usersModel users.ModelInt) (mg *Manager) {
 	mg = &Manager{
 		s3BackupsPath: s3BackupsPath,
 		port:          port,
@@ -62,6 +68,7 @@ func Init(prefix, awsRegion, s3BackupsPath string, port int) (mg *Manager) {
 		instancesModel: instances.InitAndKeepAlive(prefix, awsRegion, true),
 		awsRegion:      awsRegion,
 		acquiredShards: make(map[string]recommender.RecommenderInt),
+		usersModel:     usersModel,
 	}
 
 	go mg.manage()
@@ -149,6 +156,8 @@ func (st *statsReqSec) monitorStats() {
 }
 
 func (mg *Manager) GroupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	userId := r.FormValue("uid")
 	key := r.FormValue("key")
 	groupID := r.FormValue("group")
@@ -207,7 +216,193 @@ func (mg *Manager) GroupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(respJson)
 }
 
+func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	var reqs, records uint64
+
+	uid := r.FormValue("u")
+	uKey := r.FormValue("uk")
+	guid := r.FormValue("guid")
+	user := mg.usersModel.GetUserInfo(uid, uKey)
+	if user == nil {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+
+	groupType := r.FormValue("gt")
+	switch groupType {
+	case "s":
+		reqs = cfg.GetUint64("group-types", "small-reqs")
+		records = cfg.GetUint64("group-types", "small-records")
+	case "m":
+		reqs = cfg.GetUint64("group-types", "medium-reqs")
+		records = cfg.GetUint64("group-types", "medium-records")
+	case "l":
+		reqs = cfg.GetUint64("group-types", "large-reqs")
+		records = cfg.GetUint64("group-types", "large-records")
+	case "xl":
+		reqs = cfg.GetUint64("group-types", "x-large-reqs")
+		records = cfg.GetUint64("group-types", "x-large-records")
+	case "xxl":
+		reqs = cfg.GetUint64("group-types", "xx-large-reqs")
+		records = cfg.GetUint64("group-types", "xx-large-records")
+	default:
+		w.WriteHeader(422)
+		w.Write([]byte("Group type required"))
+		return
+	}
+
+	shardsStr := r.FormValue("shards")
+	shards, err := strconv.ParseInt(shardsStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(422)
+		w.Write([]byte("The param shards is not an integer"))
+		return
+	}
+	maxScoreStr := r.FormValue("max-score")
+	maxScore, err := strconv.ParseInt(maxScoreStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(422)
+		w.Write([]byte("The param max-score is not an integer"))
+		return
+	}
+
+	uuid, _ := uuid.NewV4()
+	guid = guid + ":" + uuid.String()
+	_, key, err := mg.shardsModel.AddUpdateGroup(uid, guid, int(shards), records, reqs, reqs*4, uint8(maxScore))
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(fmt.Sprintf("Error trying to add a new group:", err)))
+		return
+	}
+
+	user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Added new group of type:", groupType, "with Shards:", shards, "GUID:", guid), r.RemoteAddr)
+	w.WriteHeader(200)
+	w.Write([]byte(fmt.Sprintf(`{"success": true, "key": "%s"}`, key)))
+}
+
+func (mg *Manager) RegenerateGroupKey(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	uid := r.FormValue("u")
+	uKey := r.FormValue("uk")
+	gid := r.FormValue("g")
+	key := r.FormValue("k")
+
+	user := mg.usersModel.GetUserInfo(uid, uKey)
+	if user == nil {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+
+	if group, err := mg.shardsModel.GetGroupByUserKeyId(uid, key, gid); err == nil {
+		if key, err := group.RegenerateKey(); err == nil {
+			user.AddActivityLog(users.CActivityShardsType, "Regenerated group key", r.RemoteAddr)
+			w.WriteHeader(200)
+			w.Write([]byte(key))
+		} else {
+			w.WriteHeader(500)
+			w.Write([]byte("Problem re-generating key"))
+		}
+	} else {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+	}
+}
+
+func (mg *Manager) GetGroupsByUser(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	uid := r.FormValue("u")
+	uKey := r.FormValue("uk")
+	user := mg.usersModel.GetUserInfo(uid, uKey)
+	if user == nil {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+
+	groups := mg.shardsModel.GetAllGroupsByUserID(uid)
+	groupsJson, _ := json.Marshal(groups)
+	w.WriteHeader(200)
+	w.Write(groupsJson)
+}
+
+func (mg *Manager) DelGroup(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	uid := r.FormValue("u")
+	uKey := r.FormValue("uk")
+	gid := r.FormValue("g")
+	key := r.FormValue("k")
+
+	user := mg.usersModel.GetUserInfo(uid, uKey)
+	if user == nil {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+
+	if _, err := mg.shardsModel.GetGroupByUserKeyId(uid, key, gid); err == nil {
+		if err := mg.shardsModel.RemoveGroup(gid); err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte("Internal Server Error"))
+			return
+		}
+		user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Removed group:", gid), r.RemoteAddr)
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	} else {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+	}
+}
+
+func (mg *Manager) SetShards(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	uid := r.FormValue("u")
+	uKey := r.FormValue("uk")
+	gid := r.FormValue("g")
+	key := r.FormValue("k")
+
+	user := mg.usersModel.GetUserInfo(uid, uKey)
+	if user == nil {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+
+	if group, err := mg.shardsModel.GetGroupByUserKeyId(uid, key, gid); err == nil {
+		shards, err := strconv.ParseInt(r.FormValue("s"), 10, 64)
+		if err != nil {
+			w.WriteHeader(422)
+			w.Write([]byte("The number of shards has to be an integer"))
+			return
+		}
+
+		if err := group.SetNumShards(int(shards)); err != nil {
+			log.Error("Problem trying to store a new number of shards, Error:", err)
+			w.WriteHeader(500)
+			w.Write([]byte("Internal Server Error"))
+			return
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("OK"))
+	} else {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+}
+
 func (mg *Manager) ScoresApiHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	userId := r.FormValue("uid")
 	key := r.FormValue("key")
 	groupID := r.FormValue("group")
@@ -215,8 +410,6 @@ func (mg *Manager) ScoresApiHandler(w http.ResponseWriter, r *http.Request) {
 	elemScores := r.FormValue("scores")
 	maxRecs := r.FormValue("max_recs")
 	justAdd := r.FormValue("insert") != ""
-
-	//log.Debug("New API request: uid:", userId, "key:", key, "groupID:", groupID, "id:", "elemScores:", elemScores, "maxRecs:", maxRecs, "justAdd:", justAdd)
 
 	group, err := mg.shardsModel.GetGroupByUserKeyId(userId, key, groupID)
 	if err != nil {

@@ -20,25 +20,31 @@ const (
 	cTable             = "users"
 	cPrimKey           = "uid"
 	cDefaultWRCapacity = 5
+
+	CActivityAccountType = "account"
+	CActivityShardsType  = "shards"
 )
 
 type ModelInt interface {
-	RegisterUser(uid string, key string, ip string) (user *User)
+	RegisterUserPlainKey(uid string, key string, ip string) (*User, error)
+	HashPassword(password string) string
+	RegisterUser(uid string, key string, ip string) (user *User, err error)
 	GetUserInfo(uid string, key string) (user *User)
 	AdminGetUserInfoByID(uid string) (user *User)
-	GetRegisteredUsers() (users []*User)
+	GetRegisteredUsers() (users map[string]*User)
 }
 
 type UsersInt interface {
 	DisableUser() (persisted bool)
 	EnableUser() (persisted bool)
 	UpdateUser(key string) bool
-	AddActivityLog(actionType string, des string) bool
+	AddActivityLog(actionType string, des string, ip string) bool
 	GetAllActivity() (activity map[string]*LogLine)
 }
 
 type LogLine struct {
 	Ts      int64  `json:"ts"`
+	Ip      string `json:"ip"`
 	LogType string `json:"type"`
 	Desc    string `json:"desc"`
 }
@@ -87,7 +93,7 @@ func GetModel(prefix string, awsRegion string) (um *Model) {
 	return
 }
 
-func (um *Model) RegisterUser(uid string, key string, ip string) (*User, error) {
+func (um *Model) RegisterUserPlainKey(uid string, key string, ip string) (*User, error) {
 	// Sanitize e-mail addr removin all the + Chars in order to avoid fake
 	// duplicated accounts
 	uid = strings.Replace(uid, "+", "", -1)
@@ -98,7 +104,7 @@ func (um *Model) RegisterUser(uid string, key string, ip string) (*User, error) 
 
 	user := &User{
 		uid:     uid,
-		key:     um.HashPassword(key),
+		key:     key,
 		Enabled: "1",
 		logs:    make(map[string][]*LogLine),
 
@@ -112,6 +118,10 @@ func (um *Model) RegisterUser(uid string, key string, ip string) (*User, error) 
 		return nil, errors.New("Error trying to store the user data")
 	}
 	return user, nil
+}
+
+func (um *Model) RegisterUser(uid string, key string, ip string) (*User, error) {
+	return um.RegisterUserPlainKey(uid, um.HashPassword(key), ip)
 }
 
 func (um *Model) GetUserInfo(uid string, key string) (user *User) {
@@ -194,12 +204,13 @@ func (us *User) UpdateUser(key string) bool {
 	return us.persist()
 }
 
-func (us *User) AddActivityLog(actionType string, desc string) bool {
+func (us *User) AddActivityLog(actionType string, desc, ip string) bool {
 	if _, ok := us.logs[actionType]; !ok {
 		us.logs[actionType] = []*LogLine{}
 	}
 
 	us.logs[actionType] = append(us.logs[actionType], &LogLine{
+		Ip:      ip,
 		Ts:      time.Now().Unix(),
 		LogType: actionType,
 		Desc:    desc,

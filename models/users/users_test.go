@@ -76,7 +76,7 @@ func TestUpdateUser(t *testing.T) {
 	if user == nil || err != nil {
 		t.Error("A new user can't be registered")
 	}
-	user.AddActivityLog("test", "testing...")
+	user.AddActivityLog("test", "testing...", "127.0.0.1")
 
 	userFromDb := um.GetUserInfo("uid99", "key99")
 

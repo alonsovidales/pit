@@ -8,6 +8,7 @@ import (
 	"github.com/alonsovidales/pit/models/instances"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
+	"github.com/nu7hatch/gouuid"
 	"sync"
 	"time"
 )
@@ -37,6 +38,8 @@ type GroupInfoInt interface {
 	AcquireShard() (adquired bool, err error)
 	ReleaseShard()
 	IsThisInstanceOwner() bool
+	RegenerateKey() (key string, err error)
+	SetNumShards(numShards int) error
 }
 
 type Shard struct {
@@ -78,9 +81,10 @@ type GroupInfo struct {
 
 type ModelInt interface {
 	GetAllGroups() map[string]map[string]*GroupInfo
+	GetAllGroupsByUserID(uid string) map[string]*GroupInfo
 	GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupInfo, err error)
 	GetGroupByID(groupId string) (gr *GroupInfo)
-	AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, err error)
+	AddUpdateGroup(userId, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error)
 	ReleaseAllAcquiredShards()
 	GetTotalNumberOfShards() (tot int)
 	RemoveGroup(groupId string) (err error)
@@ -131,11 +135,10 @@ func GetModel(prefix, awsRegion string) (md *Model) {
 	return
 }
 
-func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, err error) {
+func (md *Model) AddUpdateGroup(userId, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error) {
 	var grOk bool
 	userGroups, ugOk := md.groups[userId]
 	if gr, grOk = userGroups[groupId]; ugOk && grOk {
-		gr.Secret = secret
 		gr.MaxScore = maxScore
 		gr.MaxElements = maxElements
 		gr.MaxReqSec = maxReqSec
@@ -151,7 +154,6 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 	} else {
 		gr = &GroupInfo{
 			UserID:  userId,
-			Secret:  secret,
 			GroupID: groupId,
 
 			NumShards: numShards,
@@ -166,6 +168,8 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 			md: md,
 		}
 
+		gr.RegenerateKey()
+
 		if userGroups, ugOk := md.groups[userId]; ugOk {
 			userGroups[groupId] = gr
 		} else {
@@ -179,7 +183,7 @@ func (md *Model) AddGroup(userId, secret, groupId string, numShards int, maxElem
 		}
 	}
 
-	return gr, gr.persist()
+	return gr, gr.Secret, gr.persist()
 }
 
 func (md *Model) GetGroupByID(groupID string) (gr *GroupInfo) {
@@ -195,6 +199,10 @@ func (md *Model) GetGroupByID(groupID string) (gr *GroupInfo) {
 	}
 
 	return
+}
+
+func (md *Model) GetAllGroupsByUserID(uid string) map[string]*GroupInfo {
+	return md.groups[uid]
 }
 
 func (md *Model) GetAllGroups() map[string]map[string]*GroupInfo {
@@ -218,6 +226,25 @@ func (md *Model) GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupI
 	}
 
 	return nil, CErrGroupUserNotFound
+}
+
+func (gr *GroupInfo) SetNumShards(numShards int) error {
+	if numShards > gr.NumShards {
+		for i := gr.NumShards; i < numShards; i++ {
+			gr.addShard(i)
+		}
+	}
+
+	gr.NumShards = numShards
+
+	return gr.persist()
+}
+
+func (gr *GroupInfo) RegenerateKey() (key string, err error) {
+	secret, _ := uuid.NewV4()
+	gr.Secret = secret.String()
+
+	return gr.Secret, gr.persist()
 }
 
 func (gr *GroupInfo) IsThisInstanceOwner() bool {

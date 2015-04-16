@@ -64,7 +64,6 @@ func main() {
 	cmdGroupsAddMaxReqSec := cmdGroupsAdd.Flag("max-req-sec", `Max number of requests by second`).Required().Int()
 	cmdGroupsAddMaxInsertReqSec := cmdGroupsAdd.Flag("max-ins-req-sec", `Max number of insert requests`).Required().Int()
 	cmdGroupsAddUserID := cmdGroupsAdd.Flag("user-id", `User ID of the owner of this group`).Required().String()
-	cmdGroupsAddKey := cmdGroupsAdd.Flag("key", `Access key token of this group`).Required().String()
 	cmdGroupsAddGroupID := cmdGroupsAdd.Flag("group-id", `ID of the group to be updated or added`).Required().String()
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
@@ -82,7 +81,6 @@ func main() {
 	case cmdGroupsAdd.FullCommand():
 		addGroup(
 			*cmdGroupsAddUserID,
-			*cmdGroupsAddKey,
 			*cmdGroupsAddGroupID,
 			*cmdGroupsAddNumShards,
 			uint64(*cmdGroupsAddMaxElements),
@@ -285,14 +283,13 @@ func delGroup(groupId string) {
 	}
 }
 
-func addGroup(userId, secret, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) {
+func addGroup(userId, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) {
 	md := shardinfo.GetModel(
 		cfg.GetStr("aws", "prefix"),
 		cfg.GetStr("aws", "region"))
 
 	fmt.Println(CLRG + "The next group will be added:" + CLRN)
 	fmt.Println("User ID:", userId)
-	fmt.Println("Secret:", secret)
 	fmt.Println("Group ID:", groupId)
 	fmt.Println("Num Shards:", numShards)
 	fmt.Println("Max elements:", maxElements)
@@ -301,9 +298,11 @@ func addGroup(userId, secret, groupId string, numShards int, maxElements, maxReq
 	fmt.Println("Max score:", maxScore)
 
 	if askForConfirmation() {
-		_, err := md.AddGroup(userId, secret, groupId, numShards, maxElements, maxReqSec, maxInsertReqSec, maxScore)
+		_, key, err := md.AddUpdateGroup(userId, groupId, numShards, maxElements, maxReqSec, maxInsertReqSec, maxScore)
 		if err != nil {
 			fmt.Println("Problem adding a new group, Error:", err)
+		} else {
+			fmt.Println("Group added, key:", key)
 		}
 	}
 }

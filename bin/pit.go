@@ -5,6 +5,7 @@ import (
 	"github.com/alonsovidales/pit/api"
 	"github.com/alonsovidales/pit/cfg"
 	"github.com/alonsovidales/pit/log"
+	"github.com/alonsovidales/pit/models/users"
 	"github.com/alonsovidales/pit/shards_manager"
 	"os"
 	"os/signal"
@@ -26,23 +27,28 @@ func main() {
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	usersModel := users.GetModel(
+		cfg.GetStr("aws", "prefix"),
+		cfg.GetStr("aws", "region"))
+
 	accountsManager := accountsmanager.Init(
 		cfg.GetStr("rec-api", "base-url"),
-		cfg.GetStr("aws", "prefix"),
-		cfg.GetStr("aws", "region"),
 		cfg.GetStr("mail", "addr"),
 		cfg.GetStr("mail", "server"),
-		cfg.GetInt("mail", "port"))
+		cfg.GetInt("mail", "port"),
+		usersModel)
 
 	shardsManager := shardsmanager.Init(
 		cfg.GetStr("aws", "prefix"),
 		cfg.GetStr("aws", "region"),
 		cfg.GetStr("aws", "s3-backups-path"),
-		int(cfg.GetInt("rec-api", "port")))
+		int(cfg.GetInt("rec-api", "port")),
+		usersModel)
 
 	api.Init(
 		shardsManager,
-		accountsManager)
+		accountsManager,
+		cfg.GetStr("rec-api", "static"))
 
 	log.Info("System started...")
 	c := make(chan os.Signal, 1)
