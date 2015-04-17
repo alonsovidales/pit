@@ -126,7 +126,7 @@ func (um *Model) RegisterUser(uid string, key string, ip string) (*User, error) 
 
 func (um *Model) GetUserInfo(uid string, key string) (user *User) {
 	user = um.AdminGetUserInfoByID(uid)
-	if user.key != um.HashPassword(key) || user.Enabled == "0" {
+	if user == nil || user.key != um.HashPassword(key) || user.Enabled == "0" {
 		return nil
 	}
 

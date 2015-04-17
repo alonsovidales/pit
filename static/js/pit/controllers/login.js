@@ -17,9 +17,9 @@ var LoginController = (function() {
 	var accountPannelLink = $("#account-pannel-link");
 
 	var loginQuery = function(loginUser, loginKey) {
+		user = loginUser;
+		key = loginKey;
 		GroupsController.getGroupsInfo(function(data) {
-			user = loginUser;
-			key = loginKey;
 			loginEmail.val('');
 			loginPass.val('');
 			loginIncorrect.hide();
@@ -27,7 +27,6 @@ var LoginController = (function() {
 
 			accountPannelLink.show();
 		}, function () {
-			logOut();
 			loginIncorrect.show();
 		});
 	};

@@ -1,6 +1,4 @@
 var GroupsController = (function() {
-	var user = LoginController.getUser();
-	var key = LoginController.getKey();
 	var groupsSecrets = {};
 	var charts = {};
 
@@ -10,8 +8,8 @@ var GroupsController = (function() {
 				type: 'POST',
 				url: cAPIBase + '/get_groups_by_user',
 				data: {
-					u: user,
-					uk: key,
+					u: LoginController.getUser(),
+					uk: LoginController.getKey(),
 				},
 				success: successCallback,
 				error: errorCallback,
@@ -24,14 +22,14 @@ var GroupsController = (function() {
 		}
 	};
 
-	console.log("Groups controller", user, key);
+	console.log("Groups controller", LoginController.getUser(), LoginController.getKey());
 
 	var getShardsInfo = function(groupId, callback) {
 		$.ajax({
 			type: 'POST',
 			url: cAPIBase + '/info',
 			data: {
-				uid: user,
+				uid: LoginController.getUser(),
 				key: groupsSecrets[groupId],
 				group: groupId
 			},
@@ -49,8 +47,8 @@ var GroupsController = (function() {
 			type: 'POST',
 			url: cAPIBase + '/generate_group_key',
 			data: {
-				u: user,
-				uk: key,
+				u: LoginController.getUser(),
+				uk: LoginController.getKey(),
 				g: groupId,
 				k: groupsSecrets[groupId]
 			},
@@ -172,8 +170,8 @@ var GroupsController = (function() {
 			type: 'POST',
 			url: cAPIBase + '/set_shards_group',
 			data: {
-				u: user,
-				uk: key,
+				u: LoginController.getUser(),
+				uk: LoginController.getKey(),
 				g: groupId,
 				k: groupsSecrets[groupId],
 				s: numShards

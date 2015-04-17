@@ -400,6 +400,10 @@ func (mg *Manager) SetShards(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		user.AddActivityLog(
+			users.CActivityShardsType,
+			fmt.Sprintf("Modified number of shards on group: %s, to: %d", gid, shards),
+			r.RemoteAddr)
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	} else {
