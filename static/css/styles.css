@@ -1,5 +1,5 @@
 body.info {
-        background-color: #eaeaea;
+    background-color: #eaeaea;
 }
 
 #log-out-div {
@@ -19,26 +19,26 @@ body.info {
 }
 
 #account-name-top {
-        display: none;
-        color: #cccccc;
-        padding-right: 10px;
+    display: none;
+    color: #cccccc;
+    padding-right: 10px;
 }
 
 .group-shards-by-group {
-        width: 260px;
+    width: 260px;
 }
 
 .shards-pannel {
-        width: 100%;
-        height: 600px;
-        margin-top: 10px;
+    width: 100%;
+    height: 600px;
+    margin-top: 10px;
 }
 
 .progress-bar-shard {
-        width: 50%;
-        display: inline;
-        float: right;
-        margin-right: 20px;
+    width: 50%;
+    display: inline;
+    float: right;
+    margin-right: 20px;
 }
 
 ul.group-desc {
@@ -47,9 +47,9 @@ ul.group-desc {
 }
 
 .animated-char {
-        width: 95%;
-        margin: 0;
-        height: 200px;
+    width: 95%;
+    margin: 0;
+    height: 200px;
 }
 
 .shards-container {
@@ -57,5 +57,130 @@ ul.group-desc {
 }
 
 .status-shard-label {
-        float: right;
+    float: right;
+}
+
+.main-title {
+    background-image: url("/img/graph_bg.png");
+    background-size: cover;
+    padding-top: 100px;
+    color: #ffffff;
+    background-color: #ce9a0b;
+    height: 450px;
+}
+
+.main-page-logo {
+    background-image: url("/img/logo_white.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    margin: 0 auto;
+    height: 150px;
+    width: 100px;
+}
+
+.main-suscribe {
+    background-color: #609572;
+    height: 300px;
+    color: #ffffff;
+    font-size: 1.5em;
+    padding-left: 100px;
+}
+
+.main-suscribe-form {
+    padding-left: 0;
+    padding-top: 30px;
+}
+
+.yellow-text {
+    color: #deaa1b;
+}
+
+.special-text {
+    color: #deaa1b;
+    font-weight: bold;
+    font-size: 2em;
+}
+
+.suscribe-form-elem {
+    width: 400px;
+}
+
+.footer-links a {
+    color: #878787;
+}
+
+.footer-links {
+    padding-top: 10px;
+    height: 50px;
+    color: #878787;
+    background-color: #1c1c1c;
+    font-size: 10px;
+    padding-right: 100px;
+}
+
+.footer-logo {
+    background-color: #1c1c1c;
+    padding-left: 100px;
+    height: 50px;
+}
+
+.main-how-works {
+    padding-top: 20px;
+    height: 420px;
+    background-color: #242424;
+    color: #ffffff;
+    font-size: 1.5em;
+}
+
+ul.main-how-works-ul {
+    padding: 10px;
+    list-style-type: none;
+}
+
+.main-high-availability {
+    padding-top: 20px;
+    font-size: 1.5em;
+    height: 330px;
+}
+
+.main-pricing {
+    background-color: #0f4e70;
+    padding-top: 20px;
+    font-size: 1.5em;
+    height: 890px;
+    color: #ffffff;
+}
+
+.main-instance-pannel {
+    width: 50%;
+    margin: 0 auto;
+    width: 500px;
+    text-align: left;
+}
+
+ul.main-instance-pannel-info li {
+    color: #444444;
+    font-size: 0.75em;
+    list-style-type: none;
+}
+
+.special-text-small {
+    font-size: 1em;
+}
+
+.logo-header {
+    width: 100px;
+    background-image: url("/img/logo_white_r.png");
+    margin-top: 10px;
+    height: 30px;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+.logo-foot {
+    background-image: url("/img/logo_white_r.png");
+    margin-top: 10px;
+    height: 30px;
+    background-size: contain;
+    background-repeat: no-repeat;
 }

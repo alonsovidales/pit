@@ -11,6 +11,7 @@ import (
 
 const (
 	cHealtyPath = "/check_healty"
+	cContact = "/contact"
 )
 
 type Api struct {
@@ -37,6 +38,25 @@ func Init(shardsManager *shardsmanager.Manager, accountsManager *accountsmanager
 	return
 }
 
+func (api *Api) contact(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	email := r.FormValue("mail")
+	content := r.FormValue("content")
+
+	if email != "" && content != "" {
+		if api.accountsManager.SendEmail(cfg.GetStr("mail", "addr"), content, fmt.Sprintf("Contact form from: %s", email)) {
+			w.WriteHeader(200)
+			w.Write([]byte("OK"))
+			return
+		}
+	}
+
+	w.WriteHeader(500)
+	w.Write([]byte("KO"))
+	return
+}
+
 func (api *Api) registerApis() {
 	api.muxHttpServer.HandleFunc(cHealtyPath, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -59,7 +79,26 @@ func (api *Api) registerApis() {
 	api.muxHttpServer.HandleFunc(accountsmanager.CChangePass, api.accountsManager.ChangePass)
 	api.muxHttpServer.HandleFunc(accountsmanager.CDisablePath, api.accountsManager.Disable)
 
+	api.muxHttpServer.HandleFunc(cContact, api.contact)
+
 	api.muxHttpServer.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, api.staticPath+r.URL.Path[1:])
+		path := api.staticPath + r.URL.Path[1:]
+		lastPosSlash := -1
+		lastPosDot := -1
+
+		for i := 0; i < len(path); i++ {
+			switch path[i] {
+			case '/':
+				lastPosSlash = i
+			case '.':
+				lastPosDot = i
+			}
+		}
+
+		if lastPosDot < lastPosSlash {
+			path += ".html"
+		}
+
+		http.ServeFile(w, r, path)
 	})
 }

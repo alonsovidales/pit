@@ -84,7 +84,7 @@ func (mg *Manager) Register(w http.ResponseWriter, r *http.Request) {
 		CVerifyPath,
 		v.Encode())
 
-	emailSent := mg.sendEmail(
+	emailSent := mg.SendEmail(
 		uid,
 		fmt.Sprintf(
 			"Hello from Pitia!,\n\tPlease, click on the next link in order to verify you account: %s\n\nBest!,",
@@ -234,7 +234,7 @@ func (mg *Manager) RecoverPass(w http.ResponseWriter, r *http.Request) {
 			"Hi!,\n\tYou have requested password recovery, please click the following link to reset your password: %s\n\nBest,",
 			verifUrl)
 
-		if mg.sendEmail(uid, body, "Pitia: Password Recovery") {
+		if mg.SendEmail(uid, body, "Pitia: Password Recovery") {
 			userInfo.AddActivityLog(users.CActivityAccountType, "Password recovery sent", r.RemoteAddr)
 			w.WriteHeader(200)
 			w.Write([]byte("OK"))
@@ -256,7 +256,7 @@ func (mg *Manager) getSignature(uid, keyHash string, ttl int64) string {
 	return fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("%s:%s:%d:%s", uid, keyHash, ttl, mg.secret))))
 }
 
-func (mg *Manager) sendEmail(to, body, subject string) (success bool) {
+func (mg *Manager) SendEmail(to, body, subject string) (success bool) {
 	auth := smtp.PlainAuth(
 		mg.mailFromAddr,
 		mg.mailFromAddr,

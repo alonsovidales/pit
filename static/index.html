@@ -4,10 +4,9 @@
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
-        <title>Pit - High Performance Distributed Recommender System</title>
+	<link rel="icon" href="/img/favicon.png">
+        <title>Highly Scalable Recomender System | Pitia</title>
 
-        <!-- Bootstrap -->
         <link href="css/bootstrap.min.css" rel="stylesheet">
         <link href="css/styles.css" rel="stylesheet">
 
@@ -20,16 +19,17 @@
         <nav class="navbar navbar-inverse navbar-fixed-top">
             <div class="container">
                 <div class="navbar-header">
-                    <a class="navbar-brand" href="#">Pit</a>
+		    <a href="/">
+			<div class="logo-header">&nbsp;</div>
+		    </a>
                 </div>
                 <div id="navbar" class="navbar-collapse collapse">
                     <ul class="nav navbar-nav">
-                        <li class="active"><a href="product.html">Product</a></li>
-                        <li><a href="cases-of-use.html">Cases Of Use</a></li>
-                        <li><a href="pricing.html">Pricing</a></li>
-                        <li><a href="how-works.html">How Pitia Works</a></li>
-                        <li><a href="api.html">API Specifications</a></li>
-                        <li id="account-pannel-link"><a href="account-pannel.html">Account Pannel</a></li>
+                        <li class="active"><a href="/">Product</a></li>
+                        <li><a href="cases-of-use">Cases Of Use</a></li>
+                        <li><a href="pricing">Pricing</a></li>
+                        <li><a href="api">API Specifications</a></li>
+                        <li id="account-pannel-link"><a href="account-pannel">Management Pannel</a></li>
                     </ul>
                     <form class="navbar-form navbar-right" id="login-form">
                         <span id="login-incorrect" class="label label-danger">User/Pass incorrect</span>
@@ -43,23 +43,206 @@
                         <!--<button type="submit" class="btn btn-primary">Sign up</button>-->
                     </form>
                     <div class="navbar-form navbar-right" id="log-out-div">
+			<small id="account-name-top"></small>
                         <button type="submit" id="log-out-button" class="btn btn-danger">Log out</button>
                     </div>
                 </div>
             </div>
         </nav>
 
-        <div class="container theme-showcase" role="main" id="content-container">
-            <div class="page-header">
-                <br />
-                <h1>Pitia <small>- High Performance and Scalable Recommender System</small></h1>
+        <div class="" role="main" id="content-container">
+            <div class="row">
+                <div class="col-md-12 text-center main-title">
+                    <div class="main-page-logo">
+                    </div>
+                    <h2>Real-Time & Highly Scalable Recommender System</h2>
+                    <p>Improve the way your users explores your products.</p>
+                </div>
+
+		<div class="col-md-1 main-how-works"></div>
+                <div class="col-md-10 text-left main-how-works">
+		    <h2>How Pitia Works</h2>
+                    <ul class="main-how-works-ul">
+                        <li>
+                            1. Send to our systems the users classifications using us <strong class="yellow-text">REST API</strong>
+                        </li>
+                        <li>
+			2. Our systems will store the user information in a <strong class="yellow-text">safety and private way</strong> in order to use it to improve your future recommendations
+                        </li>
+                        <li>
+			3. Based on the previous provided classifications, the system generates a <strong class="yellow-text">list of the best elements</strong> to be recommended for this user
+                        </li>
+                    </ul>
+		    That's all!, Pitia is a super easy way to recommend items to your customers based in one of the most accuarates recommendation algorithms, we will store the data in a safety way, process it and <strong class="yellow-text">generate recommendations on the fly!</strong><br />
+		    Pitia is able to <strong class="yellow-text">scale</strong> according to your present and future necessities.
+                </div>
+		<div class="col-md-1 main-how-works"></div>
+
+		<div class="col-md-1 main-high-availability"></div>
+                <div class="col-md-10 text-left main-high-availability">
+		    <h2>High Availability</h2>
+		    Each group contains at least <strong class="yellow-text">2 shards</strong>, and <strong class="yellow-text">each shard is allocated on a different physical machine</strong> in order to assure that if one of us servers goes down your coustomers will continue receiving the best service. That's why always the first shard in a group is composed by two shards being the same price by the first two than by a single shard.<br />
+		    All the provided recommendations are persisted in a <strong class="yellow-text">safe storage system</strong> apart of us data centers in order to warranty that in the worst of the situations we can have the systems up and running with the last provided information in question of minutes.<br />
+                </div>
+		<div class="col-md-1 main-high-availability"></div>
+
+                <div class="col-md-12 text-center main-pricing">
+		    <h2>Pricing</h2>
+		    <h5>Can't be cheapper!</h5>
+		    <br />
+		    <div class="panel panel-primary main-instance-pannel">
+			<div class="panel-heading">
+			    <h3 class="panel-title" id="panel-title">
+				Small - $7 / month
+			    </h3>
+			</div>
+			<ul class="main-instance-pannel-info">
+			    <li>
+				<strong>Requests per second:</strong> <span class="special-text special-text-small">200</span>
+			    </li>
+			    <li>
+				<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">800</span>
+			    </li>
+			    <li>
+				<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">2.000.000</span>
+			    </li>
+			</ul>
+		    </div>
+		    <br />
+		    <div class="panel panel-primary main-instance-pannel">
+			<div class="panel-heading">
+			    <h3 class="panel-title" id="panel-title">
+				Medium - $16 / month
+			    </h3>
+			</div>
+			<ul class="main-instance-pannel-info">
+			    <li>
+				<strong>Requests per second:</strong> <span class="special-text special-text-small">600</span>
+			    </li>
+			    <li>
+				<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
+			    </li>
+			    <li>
+				<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">6.000.000</span>
+			    </li>
+			</ul>
+		    </div>
+		    <br />
+		    <div class="panel panel-primary main-instance-pannel">
+			<div class="panel-heading">
+			    <h3 class="panel-title" id="panel-title">
+				Large - $26 / month
+			    </h3>
+			</div>
+			<ul class="main-instance-pannel-info">
+			    <li>
+				<strong>Requests per second:</strong> <span class="special-text special-text-small">1.000</span>
+			    </li>
+			    <li>
+				<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
+			    </li>
+			    <li>
+				<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">10.000.000</span>
+			    </li>
+			</ul>
+		    </div>
+		    <br />
+		    <div class="panel panel-primary main-instance-pannel">
+			<div class="panel-heading">
+			    <h3 class="panel-title" id="panel-title">
+				X-Large - $45 / month
+			    </h3>
+			</div>
+			<ul class="main-instance-pannel-info">
+			    <li>
+				<strong>Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
+			    </li>
+			    <li>
+				<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
+			    </li>
+			    <li>
+				<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">20.000.000</span>
+			    </li>
+			</ul>
+		    </div>
+		    <br />
+		    <div class="panel panel-primary main-instance-pannel">
+			<div class="panel-heading">
+			    <h3 class="panel-title" id="panel-title">
+				XX-Large $86 / month
+			    </h3>
+			</div>
+			<ul class="main-instance-pannel-info">
+			    <li>
+				<strong>Requests per second:</strong> <span class="special-text special-text-small">3.000</span>
+			    </li>
+			    <li>
+				<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">3.000</span>
+			    </li>
+			    <li>
+				<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">30.000.000</span>
+			    </li>
+			</ul>
+		    </div>
+		    <span style="font-size: 0.75em;">All the prices are expressed by shard. Remember that the first shard of a group is always composed by two shards but you will be charged just by one.</span>
+		</div>
+
+                <div class="col-md-6 text-right main-suscribe">
+                    <h2><span class="special-text">Interested?</span></h2><br />
+                    We hope to open the system to the public soon, but in the mean time if want to try Pitia, and you explain us how do you plan to use Pitia, we could grant you enough shards to fulfil your necesities!</h3>
+                </div>
+                <div class="col-md-6 text-left main-suscribe main-suscribe-form">
+                    <form id="contact-form">
+                            <div class="form-group">
+                                <input type="email" placeholder="Contact Email" class="form-control suscribe-form-elem" id="contact-email" required>
+                            </div>
+                            <div class="form-group">
+                                <textarea class="form-control suscribe-form-elem" rows="5" placeholder="Explain us what are your necessities!" id="contact-content" required></textarea>
+                            </div>
+                            <div class="form-group" id="contact-submit-div">
+                                <button type="submit" class="btn btn-success suscribe-form-elem" id="contact-submit">Send!</button>
+                            </div>
+                    </form>
+                </div>
             </div>
         </div>
+
+        <footer>
+            <div class="row">
+                <div class="col-md-2 footer-logo">
+                    <a href="/">
+			<div class="logo-foot">&nbsp;</div>
+                    </a>
+                </div>
+                <div class="col-md-10 footer-links text-right">
+                    <a href="contact">Contact us</a> 
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    <a href="terms">Terms of Use</a> 
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    <a href="website-terms">Website Terms</a> 
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    <a href="privacy">Privacy Policy</a> 
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    <a href="security">Security Policy</a>
+                </div>
+            </div>
+        </footer>
 
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
         <script src="js/bootstrap.min.js"></script>
         <script src="js/pit/bootstrap.js"></script>
+        <script src="js/pit/controllers/contact-form.js"></script>
         <script src="js/pit/controllers/login.js"></script>
         <script src="js/pit/controllers/groups.js"></script>
+
+	<script>
+	    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		 (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		 m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	     })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+	    ga('create', 'UA-61992892-1', 'auto');
+	    ga('send', 'pageview');
+	</script>
     </body>
 </html>
