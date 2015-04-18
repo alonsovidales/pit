@@ -454,6 +454,12 @@ func (mg *Manager) ScoresApiHandler(w http.ResponseWriter, r *http.Request) {
 		scores := make(map[uint64]uint8)
 		err = json.Unmarshal([]byte(elemScores), &jsonScores)
 
+		if err != nil {
+			w.WriteHeader(400)
+			w.Write([]byte(fmt.Sprintf("Error: %s", err)))
+
+			return
+		}
 		for k, v := range jsonScores {
 			if elemId, err := strconv.ParseInt(k, 10, 64); err == nil {
 				scores[uint64(elemId)] = v
@@ -465,16 +471,9 @@ func (mg *Manager) ScoresApiHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if err != nil {
-			// User not authorised to access to this shard
-			w.WriteHeader(400)
-			w.Write([]byte(fmt.Sprintf("Error: %s", err)))
-
-			return
-		}
 		idInt, err := strconv.ParseInt(id, 10, 64)
 		if err != nil {
-			w.WriteHeader(500)
+			w.WriteHeader(400)
 			w.Write([]byte("The specified value for the record \"id\" has to be an integer"))
 
 			return
@@ -492,10 +491,9 @@ func (mg *Manager) ScoresApiHandler(w http.ResponseWriter, r *http.Request) {
 
 			return
 		} else {
-			log.Debug("API Max records:", maxRecs)
 			maxRecsInt, err := strconv.ParseInt(maxRecs, 10, 64)
 			if err != nil {
-				w.WriteHeader(500)
+				w.WriteHeader(400)
 				w.Write([]byte("The specified value for the record \"max_recs\" has to be an integer"))
 
 				return

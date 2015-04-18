@@ -147,8 +147,12 @@ ul.main-how-works-ul {
     background-color: #0f4e70;
     padding-top: 20px;
     font-size: 1.5em;
-    height: 890px;
+    height: 460px;
     color: #ffffff;
+}
+
+.main-pricing-head {
+    height: 100px;
 }
 
 .main-instance-pannel {
@@ -183,4 +187,95 @@ ul.main-instance-pannel-info li {
     height: 30px;
     background-size: contain;
     background-repeat: no-repeat;
+}
+
+.prices-disclamer {
+    margin-top: 30px;
+    padding-left: 72px;
+    width: 550px;
+    font-size: 0.75em;
+}
+
+.cases-of-use-title {
+    padding-top: 80px;
+    color: #ffffff;
+    background-color: #ce9a0b;
+    height: 140px;
+}
+
+.cases-of-use-content {
+    color: #ffffff;
+    font-size: 1.3em;
+    background-color: #ce9a0b;
+    height: 700px;
+    padding-left: 100px;
+    padding-right: 100px;
+}
+
+.cases-of-use-subtitle {
+    color: #d03b3b;
+    text-transform: capitalize;
+}
+
+.main-management {
+    padding-top: 35px;
+    font-size: 1.3em;
+    background-color: #eccb47;
+    height: 330px;
+    color: #0f4e70;
+}
+
+.main-management h2 {
+    margin-top: 0;
+}
+
+.pricing {
+    background-color: #0f4e70;
+    padding-top: 20px;
+    font-size: 1.2em;
+    height: 420px;
+    color: #ffffff;
+}
+
+.pricing-head {
+    padding: 70px;
+    height: 300px;
+}
+
+.api {
+    background-color: #0f4e70;
+    font-size: 1.2em;
+    height: 2120px;
+    color: #ffffff;
+    padding-top: 70px;
+    padding-right: 50px;
+}
+
+.api-code {
+    margin-left: 30px;
+    padding: 5px;
+}
+
+.green-text {
+    color: #9ec6ae;
+}
+
+.json-examples-pre {
+    width: 170px;
+    height: 180px;
+    background-color: white;
+    padding: 0;
+    margin-left: 60px;
+}
+
+.json-examples {
+    background-color: white;
+    padding: 0;
+    padding-left: 10px;
+    margin: 0;
+}
+
+.api h4 {
+    color: #d79d00;
+    font-weight: bold;
 }

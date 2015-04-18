@@ -82,7 +82,8 @@ func (api *Api) registerApis() {
 	api.muxHttpServer.HandleFunc(cContact, api.contact)
 
 	api.muxHttpServer.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := api.staticPath + r.URL.Path[1:]
+		filePath := r.URL.Path[1:]
+		path := api.staticPath + filePath
 		lastPosSlash := -1
 		lastPosDot := -1
 
@@ -95,7 +96,7 @@ func (api *Api) registerApis() {
 			}
 		}
 
-		if lastPosDot < lastPosSlash {
+		if filePath != "" && lastPosDot < lastPosSlash {
 			path += ".html"
 		}
 

@@ -67,10 +67,10 @@
                             1. Send to our systems the users classifications using us <strong class="yellow-text">REST API</strong>
                         </li>
                         <li>
-			2. Our systems will store the user information in a <strong class="yellow-text">safety and private way</strong> in order to use it to improve your future recommendations
+			    2. Our systems will store the user information in a <strong class="yellow-text">safety and private way</strong> in order to use it to improve your future recommendations
                         </li>
                         <li>
-			3. Based on the previous provided classifications, the system generates a <strong class="yellow-text">list of the best elements</strong> to be recommended for this user
+			    3. Based on the previous provided classifications, the system generates a <strong class="yellow-text">list of the best elements</strong> to be recommended for this user
                         </li>
                     </ul>
 		    That's all!, Pitia is a super easy way to recommend items to your customers based in one of the most accuarates recommendation algorithms, we will store the data in a safety way, process it and <strong class="yellow-text">generate recommendations on the fly!</strong><br />
@@ -86,10 +86,46 @@
                 </div>
 		<div class="col-md-1 main-high-availability"></div>
 
-                <div class="col-md-12 text-center main-pricing">
+		<div class="col-md-1 main-management"></div>
+		<div class="col-md-3 text-right main-management">
+		    <a href="/img/manage_pannel.png" id="manage-pannel" data-toggle="lightbox">
+			<img src="/img/manage_pannel.png" alt="Management Pannel" width="300" />
+		    </a>
+		</div>
+                <div class="col-md-7 text-left main-management">
+		    <h2>Management Pannel</h2>
+		    From the Management pannel you will be able to:
+		    <ul>
+			<li>
+			    Add / Remove groups of shards
+			</li>
+			<li>
+			    Change the number of shards by group in an easy way
+			</li>
+			<li>
+			    Watch how many elements are stored on each of the shards
+			</li>
+			<li>
+			    Watch the current status of each of the shards
+			</li>
+			<li>
+			    Watch in real time the number of requests per second and minute on each shard
+			</li>
+			<li>
+			    List the activity log on your account
+			</li>
+			<li>
+			    Access to your billing information
+			</li>
+		    </ul>
+		</div>
+		<div class="col-md-1 main-management"></div>
+
+                <div class="col-md-12 text-center main-pricing main-pricing-head">
 		    <h2>Pricing</h2>
 		    <h5>Can't be cheapper!</h5>
-		    <br />
+		</div>
+                <div class="col-md-6 text-center main-pricing">
 		    <div class="panel panel-primary main-instance-pannel">
 			<div class="panel-heading">
 			    <h3 class="panel-title" id="panel-title">
@@ -146,7 +182,8 @@
 			    </li>
 			</ul>
 		    </div>
-		    <br />
+		</div>
+                <div class="col-md-6 text-center main-pricing">
 		    <div class="panel panel-primary main-instance-pannel">
 			<div class="panel-heading">
 			    <h3 class="panel-title" id="panel-title">
@@ -184,12 +221,12 @@
 			    </li>
 			</ul>
 		    </div>
-		    <span style="font-size: 0.75em;">All the prices are expressed by shard. Remember that the first shard of a group is always composed by two shards but you will be charged just by one.</span>
+		    <div class="prices-disclamer">All the prices are expressed by shard. Remember that the first shard of a group is always composed by two shards but you will be charged just by one. Please have in consideration that one of the shards can be off-line, in order to provide the best user experience to your clients, please try to reserve enought shards to cover all the necessities when one of the shards is down.</div>
 		</div>
 
                 <div class="col-md-6 text-right main-suscribe">
                     <h2><span class="special-text">Interested?</span></h2><br />
-                    We hope to open the system to the public soon, but in the mean time if want to try Pitia, and you explain us how do you plan to use Pitia, we could grant you enough shards to fulfil your necesities!</h3>
+                    We hope to open the system to the public soon, but in the mean time if want to try Pitia, and you explain us how do you plan to use it, we could grant you enough shards to fulfil your necesities!</h3>
                 </div>
                 <div class="col-md-6 text-left main-suscribe main-suscribe-form">
                     <form id="contact-form">
@@ -234,7 +271,14 @@
         <script src="js/pit/controllers/contact-form.js"></script>
         <script src="js/pit/controllers/login.js"></script>
         <script src="js/pit/controllers/groups.js"></script>
+        <script src="js/ekko-lightbox.min.js"></script>
 
+	<script>
+	    $("#manage-pannel").click(function(event) {
+		event.preventDefault();
+		$(this).ekkoLightbox();
+	    });
+	</script>
 	<script>
 	    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
 		 (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
