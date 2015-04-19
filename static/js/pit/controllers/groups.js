@@ -165,6 +165,22 @@ var GroupsController = (function() {
 		});
 	}
 
+	var removeShardsContent = function(groupId) {
+		$.ajax({
+			type: 'POST',
+			url: cAPIBase + '/remove_group_shards_content',
+			data: {
+				u: LoginController.getUser(),
+				uk: LoginController.getKey(),
+				k: groupsSecrets[groupId],
+				g: groupId,
+			},
+			success: function(newKey) {
+				alert("Content removed, this action can take some time to have effect, please be pattient");
+			}
+		});
+	};
+
 	var updateShardsGroup = function(groupId, numShards) {
 		$.ajax({
 			type: 'POST',
@@ -202,6 +218,12 @@ var GroupsController = (function() {
 
 			$("#shards-update-buttn-" + k).click(function() {
 				updateShardsGroup(k, ~~$("#shards-update-txt-" + k).val());
+			});
+
+			$("#group-button-" + k + "-remove-all").click(function() {
+				if (confirm('This action will remove all the content from the shards and stored backups, leaving them empty, this action can\'t be undone. Are you completly sure that you want to perform this action?')) {
+					removeShardsContent(k);
+				}
 			});
 
 			$("#group-button-" + k + "-key").click(function() {

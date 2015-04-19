@@ -24,10 +24,11 @@ const (
 	CGroupInfoPath = "/info"
 
 	// User required actions
-	CRegenerateGroupKey = "/generate_group_key"
-	CGetGroupsByUser    = "/get_groups_by_user"
-	CAddUpdateGroup     = "/add_group"
-	CSetShardsGroup     = "/set_shards_group"
+	CRegenerateGroupKey  = "/generate_group_key"
+	CGetGroupsByUser     = "/get_groups_by_user"
+	CAddUpdateGroup      = "/add_group"
+	CSetShardsGroup      = "/set_shards_group"
+	CRemoveShardsContent = "/remove_group_shards_content"
 
 	cMaxMinsToStore = 1440 // A day
 )
@@ -106,6 +107,7 @@ func (mg *Manager) keepUpdateGroup(groupID string) {
 	for {
 		gr := mg.shardsModel.GetGroupByID(groupID)
 		if gr == nil || !gr.IsThisInstanceOwner() {
+			mg.acquiredShards[groupID].Stop()
 			delete(mg.acquiredShards, groupID)
 			mg.reqSecStats[groupID].stop = true
 			delete(mg.reqSecStats, groupID)
@@ -161,6 +163,41 @@ func (st *statsReqSec) monitorStats() {
 			return
 		}
 	}
+}
+
+func (mg *Manager) RemoveShardsContent(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	userId := r.FormValue("u")
+	key := r.FormValue("uk")
+	shardKey := r.FormValue("k")
+	groupID := r.FormValue("g")
+
+	user := mg.usersModel.GetUserInfo(userId, key)
+	if user == nil {
+		w.WriteHeader(401)
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+
+	group, err := mg.shardsModel.GetGroupByUserKeyId(userId, shardKey, groupID)
+	if err != nil {
+		// User not authorised to access to this shard
+		w.WriteHeader(401)
+		w.Write([]byte(fmt.Sprintf("%s", err)))
+
+		return
+	}
+	result := group.RemoveAllContent(
+		recommender.NewShard(mg.s3BackupsPath, group.GroupID, group.MaxElements, group.MaxScore, mg.awsRegion),
+	)
+	if !result {
+		w.WriteHeader(500)
+		w.Write([]byte("KO"))
+	}
+	user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Removed all the shards content for group: %s", groupID), r.RemoteAddr)
+	w.WriteHeader(200)
+	w.Write([]byte("OK"))
 }
 
 func (mg *Manager) GroupInfoApiHandler(w http.ResponseWriter, r *http.Request) {
@@ -597,10 +634,8 @@ func (mg *Manager) canAcquireNewShard(group *shardinfo.GroupInfo) bool {
 	}
 
 	totalElems := uint64(0)
-	for _, groups := range mg.shardsModel.GetAllGroups() {
-		for _, groupMem := range groups {
-			totalElems += groupMem.MaxElements
-		}
+	for _, group := range mg.acquiredShards {
+		totalElems += group.GetTotalElements()
 	}
 	allocableElems := cfg.GetInt("mem", "instance-mem-gb") * cfg.GetInt("mem", "records-by-gb")
 

@@ -71,6 +71,7 @@ func (api *Api) registerApis() {
 	api.muxHttpServer.HandleFunc(shardsmanager.CGetGroupsByUser, api.shardsManager.GetGroupsByUser)
 	api.muxHttpServer.HandleFunc(shardsmanager.CAddUpdateGroup, api.shardsManager.AddUpdateGroup)
 	api.muxHttpServer.HandleFunc(shardsmanager.CSetShardsGroup, api.shardsManager.SetShards)
+	api.muxHttpServer.HandleFunc(shardsmanager.CRemoveShardsContent, api.shardsManager.RemoveShardsContent)
 
 	api.muxHttpServer.HandleFunc(accountsmanager.CRegisterPath, api.accountsManager.Register)
 	api.muxHttpServer.HandleFunc(accountsmanager.CVerifyPath, api.accountsManager.Verify)

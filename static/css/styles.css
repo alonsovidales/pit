@@ -1,5 +1,14 @@
-body.info {
+* {
+    margin: 0;
+}
+
+html, body {
     background-color: #eaeaea;
+    height: 100%;
+}
+
+.container-fluid {
+        min-height: 100%;
 }
 
 #log-out-div {
@@ -63,10 +72,10 @@ ul.group-desc {
 .main-title {
     background-image: url("/img/graph_bg.png");
     background-size: cover;
-    padding-top: 100px;
+    padding-top: 80px;
     color: #ffffff;
     background-color: #ce9a0b;
-    height: 450px;
+    height: 380px;
 }
 
 .main-page-logo {
@@ -103,6 +112,12 @@ ul.group-desc {
 
 .suscribe-form-elem {
     width: 400px;
+}
+
+.footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
 }
 
 .footer-links a {
@@ -143,18 +158,6 @@ ul.main-how-works-ul {
     height: 330px;
 }
 
-.main-pricing {
-    background-color: #0f4e70;
-    padding-top: 20px;
-    font-size: 1.5em;
-    height: 460px;
-    color: #ffffff;
-}
-
-.main-pricing-head {
-    height: 100px;
-}
-
 .main-instance-pannel {
     width: 50%;
     margin: 0 auto;
@@ -191,13 +194,22 @@ ul.main-instance-pannel-info li {
 
 .prices-disclamer {
     margin-top: 30px;
-    padding-left: 72px;
+    margin-left: auto;
+    margin-right: auto;
     width: 550px;
     font-size: 0.75em;
 }
 
+.cases-of-use-body {
+    background-color: #ce9a0b;
+    padding-top: 20px;
+    font-size: 1.2em;
+    height: 100%;
+    color: #ffffff;
+}
+
 .cases-of-use-title {
-    padding-top: 80px;
+    padding-top: 50px;
     color: #ffffff;
     background-color: #ce9a0b;
     height: 140px;
@@ -207,7 +219,6 @@ ul.main-instance-pannel-info li {
     color: #ffffff;
     font-size: 1.3em;
     background-color: #ce9a0b;
-    height: 700px;
     padding-left: 100px;
     padding-right: 100px;
 }
@@ -229,17 +240,36 @@ ul.main-instance-pannel-info li {
     margin-top: 0;
 }
 
-.pricing {
+.main-index {
     background-color: #0f4e70;
     padding-top: 20px;
+    padding-bottom: 50px;
     font-size: 1.2em;
-    height: 420px;
-    color: #ffffff;
+    height: 100%;
+}
+
+.pricing-body {
+    height: 100%;
+    min-height: 100%;
 }
 
 .pricing-head {
-    padding: 70px;
-    height: 300px;
+    padding: 0 70px;
+}
+
+.main-pricing {
+    background-color: #0f4e70;
+    padding-top: 20px;
+    font-size: 1.5em;
+    color: #ffffff;
+}
+
+.main-pricing-cols {
+    min-height: 530px;
+}
+
+.main-pricing-head {
+    height: 100px;
 }
 
 .api {
@@ -278,4 +308,23 @@ ul.main-instance-pannel-info li {
 .api h4 {
     color: #d79d00;
     font-weight: bold;
+}
+
+.contact-form {
+    background-color: #609572;
+    padding-top: 20px;
+    padding-bottom: 50px;
+    font-size: 1.2em;
+    height: 100%;
+}
+
+.contact-form-container {
+    padding-top: 50px;
+    min-height: 200px;
+    background-color: #609572;
+    color: #ffffff;
+}
+
+.contact-form-left {
+    padding-left: 200px;
 }

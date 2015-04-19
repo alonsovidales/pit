@@ -30,6 +30,7 @@
                         <li><a href="cases-of-use">Cases Of Use</a></li>
                         <li><a href="pricing">Pricing</a></li>
                         <li><a href="api">API Specifications</a></li>
+			<li><a href="contact-form">Contact</a></li>
                         <li class="active" id="account-pannel-link"><a href="account-pannel">Management Pannel</a></li>
                     </ul>
                     <form class="navbar-form navbar-right" id="login-form">
@@ -72,7 +73,7 @@
             <div class="panel panel-primary">
                 <div class="panel-heading">
                     <h3 class="panel-title" id="panel-title">
-                            {{group_id}}
+			    {{group_id}} <button type="button" class="btn btn-xs btn-danger" style="float: right;" id="group-button-{{group_id}}-remove-all">Remove all shards content</button>
                     </h3>
                 </div>
                 <div class="panel-body">

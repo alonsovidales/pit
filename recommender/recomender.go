@@ -47,7 +47,7 @@ type RecommenderInt interface {
 	GetStatus() string
 	GetStoredElements() uint64
 
-	Destroy()
+	Stop()
 
 	SetMaxElements(maxClassif uint64)
 	SetMaxScore(maxScore uint8)
@@ -75,15 +75,18 @@ type Recommender struct {
 	status string
 
 	records map[uint64]*score
+	cloningBuffer map[uint64]map[uint64]uint8
 	older   *score
 	newer   *score
 	// Indicates if any new record was inserted since the last time the
 	// tree was recalculated
 	dirty bool
+	running bool
 
 	recTree rectree.BoostrapRecTree
 
 	mutex sync.Mutex
+	cloning bool
 }
 
 func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint8, s3Region string) (rc *Recommender) {
@@ -99,6 +102,9 @@ func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint
 		s3Path:       s3Path,
 		s3Region:     aws.Regions[s3Region],
 		dirty:        true,
+		running:      true,
+		cloning:      false,
+		cloningBuffer: make(map[uint64]map[uint64]uint8),
 	}
 
 	go rc.checkAndExpire()
@@ -106,7 +112,8 @@ func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint
 	return
 }
 
-func (rc *Recommender) Destroy() {
+func (rc *Recommender) Stop() {
+	rc.running = false
 }
 
 func (rc *Recommender) SetMaxElements(maxClassif uint64) {
@@ -145,6 +152,12 @@ func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
 	var existingRecord bool
 
 	rc.dirty = true
+	// If the system is cloning the data to process the tree, just leave
+	// the data on the buffer
+	if rc.cloning {
+		rc.cloningBuffer[recID] = scores
+		return
+	}
 	rc.mutex.Lock()
 	if sc, existingRecord = rc.records[recID]; existingRecord {
 		if sc.prev != nil {
@@ -189,10 +202,12 @@ func (rc *Recommender) RecalculateTree() {
 	}
 	log.Info("Recalculating tree for:", rc.identifier)
 	if len(rc.records) < cMinRecordsToStart {
+		rc.dirty = false
 		rc.status = STATUS_NORECORDS
 		return
 	}
 
+	rc.cloning = true
 	rc.mutex.Lock()
 	records := make([]map[uint64]uint8, len(rc.records))
 	i := 0
@@ -201,6 +216,12 @@ func (rc *Recommender) RecalculateTree() {
 		i++
 	}
 	rc.mutex.Unlock()
+	rc.cloning = false
+
+	for recID, scores := range rc.cloningBuffer {
+		rc.AddRecord(recID, scores)
+	}
+	rc.cloningBuffer = make(map[uint64]map[uint64]uint8)
 
 	rc.recTree = rectree.ProcessNewTrees(records, cRecTreeMaxDeep, rc.maxScore, cRecTreeNumOfTrees)
 
@@ -213,6 +234,25 @@ func (rc *Recommender) RecalculateTree() {
 // tree was regenerated
 func (rc *Recommender) IsDirty() bool {
 	return rc.dirty
+}
+
+func (rc *Recommender) DestroyS3Backup() (success bool) {
+	log.Info("Destroying backup on S3:", rc.identifier)
+	auth, err := aws.EnvAuth()
+	if err != nil {
+		log.Error("Problem trying to connect with AWS:", err)
+		return false
+	}
+
+	s := s3.New(auth, rc.s3Region)
+	bucket := s.Bucket(S3BUCKET)
+
+	if err := bucket.Del(rc.getS3Path()); err != nil {
+		log.Info("Problem trying to remove backup from S3:", err)
+		return false
+	}
+
+	return true
 }
 
 func (rc *Recommender) LoadBackup() (success bool) {
@@ -325,7 +365,7 @@ func (rc *Recommender) compress(data []byte) (result []byte) {
 }
 
 func (rc *Recommender) checkAndExpire() {
-	for {
+	for rc.running {
 		for rc.totalClassif > rc.maxClassif {
 			rc.mutex.Lock()
 

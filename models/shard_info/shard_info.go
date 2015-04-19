@@ -8,6 +8,7 @@ import (
 	"github.com/alonsovidales/pit/models/instances"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
+	"github.com/alonsovidales/pit/recommender"
 	"github.com/nu7hatch/gouuid"
 	"sync"
 	"time"
@@ -226,6 +227,23 @@ func (md *Model) GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupI
 	}
 
 	return nil, CErrGroupUserNotFound
+}
+
+func (gr *GroupInfo) RemoveAllContent(rec *recommender.Recommender) bool {
+	prevShards := gr.NumShards
+	if rec.DestroyS3Backup() {
+		// Force the release of all the shards on this group to take them again
+		// after the S3 backup is removed
+		gr.NumShards = 0
+		gr.persist()
+		time.Sleep(10 * time.Second)
+		gr.NumShards = prevShards
+		gr.persist()
+
+		return true
+	}
+
+	return false
 }
 
 func (gr *GroupInfo) SetNumShards(numShards int) error {

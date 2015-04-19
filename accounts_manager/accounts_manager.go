@@ -264,7 +264,10 @@ func (mg *Manager) SendEmail(to, body, subject string) (success bool) {
 		mg.mailServerAddr,
 	)
 
-	body = fmt.Sprintf("From: %s\nTo: %s\nSubject: %s\n%s", mg.mailFromAddr, to, subject, body)
+	body = fmt.Sprintf(
+		"Subject: %s\r\n%s",
+		subject,
+		[]byte(body))
 
 	err := smtp.SendMail(
 		fmt.Sprintf("%s:%d", mg.mailServerAddr, mg.mailServerPort),

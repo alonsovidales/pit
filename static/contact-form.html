@@ -16,7 +16,7 @@
         <![endif]-->
     </head>
     <body role="document" class="info">
-        <nav class="navbar navbar-inverse navbar-fixed-top header">
+        <nav class="navbar navbar-inverse navbar-fixed-top">
             <div class="container">
                 <div class="navbar-header">
 		    <a href="/">
@@ -26,10 +26,10 @@
                 <div id="navbar" class="navbar-collapse collapse">
                     <ul class="nav navbar-nav">
                         <li><a href="/">Product</a></li>
-                        <li class="active"><a href="cases-of-use">Cases Of Use</a></li>
+                        <li><a href="cases-of-use">Cases Of Use</a></li>
                         <li><a href="pricing">Pricing</a></li>
                         <li><a href="api">API Specifications</a></li>
-			<li><a href="contact-form">Contact</a></li>
+			<li class="active"><a href="contact-form">Contact</a></li>
                         <li id="account-pannel-link"><a href="account-pannel">Management Pannel</a></li>
                     </ul>
                     <form class="navbar-form navbar-right" id="login-form">
@@ -51,40 +51,31 @@
             </div>
         </nav>
 
-        <div class="cases-of-use-body" role="main" id="content-container">
+        <div class="contact-form" role="main" id="content-container">
             <div class="row">
-                <div class="col-md-12 text-center cases-of-use-title">
-			<h1>Cases Of Use</h1>
-		</div>
-                <div class="col-md-12 text-left cases-of-use-content">
-			<h2 class="cases-of-use-subtitle">
-			    Item recommendations based in direct measurements
-			</h2>
-			This kind of interest measurement on the products is one of the most commons on some straming applications, online stores, etc. You can add a rating system based on a number of stars, for instance, a movies classification based on a 0 to 5 stars system, and based on the user classifications for hte movies we will be able to predict what are the best movies for this user.<br />
-			This is an easy and direct way, but sometimes the users lie about its preferencies or prefer to don't classify controverted items, in order to improve the recommendations for this cases you can use indirect measurements.
-
-			<h2 class="cases-of-use-subtitle">
-			    Item recommendations based on indirect measurements
-			</h2>
-			If you don't have any rating system implemented in your site, don't worry you can use any kind of indirect mesurement of the user interest for the products, usually this kind of messurement is more precice than a direct measurement, the users never lies on its behaviours.<br />
-			This kind of actions can determine the interest of a user in the product:
-			<ul>
-			    <li>
-				<strong>Time spent on the products</strong> Send to us the time spent by the users watching each of the products during the last week, and we will be able to predict what other products can be of interest for your user
-			    </li>
-			    <li>
-				<strong>Number of visits of the products</strong> Another sign of interest in an item could be the number of times that a user visited this item, so we can predict the interest of the user for another products based on this information
-			    </li>
-			    <li>
-				<strong>Actions on a product</strong> If the user open the attached images of the product, access to the full description of an article and so on, can indicate a grade of interest on the product, you can assign a score for each possible action, and send to us the sum of this score by product
-			    </li>
-			    <li>
-				<strong>...</strong> Any other measurable indicator of interest can be analysed by Pitia in order to provide a great user experience to your customers!
-			    </li>
-			</ul>
-
-			<strong>Note:</strong> Take care of the bots, a bot like Google, Bing, etc, try to avoid sending this information to Pitia, the behaviour of a bot analysing the site can't be analysed.
-		</div>
+                <div class="col-md-12 text-center main-title">
+                    <div class="main-page-logo">
+                    </div>
+                    <h2>Real-Time & Highly Scalable Recommender System</h2>
+                    <p>Improve the way your users explores your products.</p>
+                </div>
+                <div class="col-md-6 text-right contact-form-container contact-form-left">
+                    <h2><span class="special-text">Interested?</span></h2><br />
+                    We hope to open the system to the public soon, but in the mean time if want to try Pitia, and you explain us how do you plan to use it, we could grant you enough shards to fulfil your necesities!</h3>
+                </div>
+		<div class="col-md-6 text-left contact-form-container">
+                    <form id="contact-form">
+                            <div class="form-group">
+                                <input type="email" placeholder="Contact Email" class="form-control suscribe-form-elem" id="contact-email" required>
+                            </div>
+                            <div class="form-group">
+                                <textarea class="form-control suscribe-form-elem" rows="5" placeholder="Explain us what are your necessities!" id="contact-content" required></textarea>
+                            </div>
+                            <div class="form-group" id="contact-submit-div">
+                                <button type="submit" class="btn btn-success suscribe-form-elem" id="contact-submit">Send!</button>
+                            </div>
+                    </form>
+                </div>
             </div>
         </div>
 
