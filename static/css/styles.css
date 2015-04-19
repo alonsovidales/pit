@@ -89,7 +89,7 @@ ul.group-desc {
 
 .main-suscribe {
     background-color: #609572;
-    height: 300px;
+    min-height: 330px;
     color: #ffffff;
     font-size: 1.5em;
     padding-left: 100px;
@@ -141,10 +141,15 @@ ul.group-desc {
 
 .main-how-works {
     padding-top: 20px;
-    height: 420px;
-    background-color: #242424;
+    min-height: 450px;
     color: #ffffff;
     font-size: 1.5em;
+    padding-bottom: 10px;
+}
+
+.main-how-works-wrapper {
+    padding: 0 0px 5% 5%;
+    background-color: #242424;
 }
 
 ul.main-how-works-ul {
@@ -152,10 +157,15 @@ ul.main-how-works-ul {
     list-style-type: none;
 }
 
+.main-high-availability-wrapper {
+    padding: 0 10px 5% 5%;
+    background-color: #e8e8e8;
+}
+
 .main-high-availability {
     padding-top: 20px;
     font-size: 1.5em;
-    height: 330px;
+    min-height: 330px;
 }
 
 .main-instance-pannel {
@@ -163,6 +173,10 @@ ul.main-how-works-ul {
     margin: 0 auto;
     width: 500px;
     text-align: left;
+}
+
+ul.main-instance-pannel-info {
+    padding-top: 10px;
 }
 
 ul.main-instance-pannel-info li {
@@ -228,11 +242,15 @@ ul.main-instance-pannel-info li {
     text-transform: capitalize;
 }
 
+.main-management-wrapper {
+    padding: 0 0px 5% 5%;
+    background-color: #eccb47;
+}
+
 .main-management {
     padding-top: 35px;
     font-size: 1.3em;
-    background-color: #eccb47;
-    height: 330px;
+    min-height: 390px;
     color: #0f4e70;
 }
 
@@ -241,11 +259,19 @@ ul.main-instance-pannel-info li {
 }
 
 .main-index {
-    background-color: #0f4e70;
     padding-top: 20px;
     padding-bottom: 50px;
     font-size: 1.2em;
     height: 100%;
+}
+
+.pricing {
+    color: #ffffff;
+    padding-top: 30px;
+    padding-bottom: 80px;
+    background-color: #387d51;
+    height: 100%;
+    font-size: 1.1em;
 }
 
 .pricing-body {

@@ -48,7 +48,11 @@ func main() {
 	api.Init(
 		shardsManager,
 		accountsManager,
-		cfg.GetStr("rec-api", "static"))
+		cfg.GetStr("rec-api", "static"),
+		int(cfg.GetInt("rec-api", "port")),
+		int(cfg.GetInt("rec-api", "ssl-port")),
+		cfg.GetStr("rec-api", "ssl-cert"),
+		cfg.GetStr("rec-api", "ssl-key"))
 
 	log.Info("System started...")
 	c := make(chan os.Signal, 1)

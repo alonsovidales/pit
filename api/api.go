@@ -22,18 +22,27 @@ type Api struct {
 	muxHttpServer *http.ServeMux
 }
 
-func Init(shardsManager *shardsmanager.Manager, accountsManager *accountsmanager.Manager, staticPath string) (api *Api) {
+func Init(shardsManager *shardsmanager.Manager, accountsManager *accountsmanager.Manager, staticPath string, httpPort, httpsPort int, cert, key string) (api *Api, sslApi *Api) {
 	api = &Api{
 		shardsManager:   shardsManager,
 		accountsManager: accountsManager,
 		muxHttpServer:   http.NewServeMux(),
 		staticPath:      staticPath,
 	}
+	api.registerApis(false)
+	log.Info("Starting API server on port:", httpPort)
+	go http.ListenAndServe(fmt.Sprintf(":%d", httpPort), api.muxHttpServer)
 
-	api.registerApis()
-
-	log.Info("Starting API server on port:", int(cfg.GetInt("rec-api", "port")))
-	go http.ListenAndServe(fmt.Sprintf(":%d", int(cfg.GetInt("rec-api", "port"))), api.muxHttpServer)
+	// SSL Server, will not serve the /rec method by performance issues
+	sslApi = &Api{
+		shardsManager:   shardsManager,
+		accountsManager: accountsManager,
+		muxHttpServer:   http.NewServeMux(),
+		staticPath:      staticPath,
+	}
+	sslApi.registerApis(true)
+	log.Info("Starting SSL API server on port:", httpsPort)
+	go http.ListenAndServeTLS(fmt.Sprintf(":%d", httpsPort), cert, key, sslApi.muxHttpServer)
 
 	return
 }
@@ -57,15 +66,17 @@ func (api *Api) contact(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (api *Api) registerApis() {
+func (api *Api) registerApis(ssl bool) {
+	if !ssl {
+		api.muxHttpServer.HandleFunc(shardsmanager.CRecPath, api.shardsManager.ScoresApiHandler)
+	}
+
+	api.muxHttpServer.HandleFunc(shardsmanager.CGroupInfoPath, api.shardsManager.GroupInfoApiHandler)
+
 	api.muxHttpServer.HandleFunc(cHealtyPath, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	})
-
-	api.muxHttpServer.HandleFunc(shardsmanager.CRecPath, api.shardsManager.ScoresApiHandler)
-
-	api.muxHttpServer.HandleFunc(shardsmanager.CGroupInfoPath, api.shardsManager.GroupInfoApiHandler)
 
 	api.muxHttpServer.HandleFunc(shardsmanager.CRegenerateGroupKey, api.shardsManager.RegenerateGroupKey)
 	api.muxHttpServer.HandleFunc(shardsmanager.CGetGroupsByUser, api.shardsManager.GetGroupsByUser)

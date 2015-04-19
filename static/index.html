@@ -35,12 +35,12 @@
             <form class="navbar-form navbar-right" id="login-form">
             <span id="login-incorrect" class="label label-danger">User/Pass incorrect</span>
             <div class="form-group">
-                <input type="email" placeholder="Email" class="form-control" id="login-email" required>
+                <input type="email" placeholder="Email" class="form-control input-sm" id="login-email" required>
             </div>
             <div class="form-group">
-                <input type="password" placeholder="Password" class="form-control" id="login-pass" required>
+                <input type="password" placeholder="Password" class="form-control input-sm" id="login-pass" required>
             </div>
-            <button type="submit" class="btn btn-success" id="login-button">Sign in</button>
+            <button type="submit" class="btn btn-success btn-sm" id="login-button">Sign in</button>
             <!--<button type="submit" class="btn btn-primary">Sign up</button>-->
             </form>
             <div class="navbar-form navbar-right" id="log-out-div">
@@ -51,76 +51,74 @@
         </div>
     </nav>
 
-    <div class="main-index" role="main" id="content-container">
-        <div class="row">
+    <div class="main-index row" role="main" id="content-container">
         <div class="col-md-12 text-center main-title">
-            <div class="main-page-logo">
-            </div>
+            <div class="main-page-logo"></div>
             <h2>Real-Time & Highly Scalable Recommender System</h2>
             <p>Improve the way your users explores your products.</p>
         </div>
 
-        <div class="col-md-1 main-how-works"></div>
-        <div class="col-md-10 text-left main-how-works">
-            <h2>How Pitia Works</h2>
-            <ul class="main-how-works-ul">
-            <li>
-                1. Send to our systems the users classifications using us <strong class="yellow-text">REST API</strong>
-            </li>
-            <li>
-                2. Our systems will store the user information in a <strong class="yellow-text">safety and private way</strong> in order to use it to improve your future recommendations
-            </li>
-            <li>
-                3. Based on the previous provided classifications, the system generates a <strong class="yellow-text">list of the best elements</strong> to be recommended for this user
-            </li>
-            </ul>
-            That's all!, Pitia is a super easy way to recommend items to your customers based in one of the most accuarates recommendation algorithms, we will store the data in a safety way, process it and <strong class="yellow-text">generate recommendations on the fly!</strong><br />
-            Pitia is able to <strong class="yellow-text">scale</strong> according to your present and future necessities.
+        <div class="col-md-12 main-how-works-wrapper">
+            <div class="col-md-12 text-left main-how-works">
+                <h2>How Pitia Works</h2>
+                <ul class="main-how-works-ul">
+                <li>
+                    1. Send to our systems the users classifications using us <strong class="yellow-text">REST API</strong>
+                </li>
+                <li>
+                    2. Our systems will store the user information in a <strong class="yellow-text">safety and private way</strong> in order to use it to improve your future recommendations
+                </li>
+                <li>
+                    3. Based on the previous provided classifications, the system generates a <strong class="yellow-text">list of the best elements</strong> to be recommended for this user
+                </li>
+                </ul>
+                That's all!, Pitia is a super easy way to recommend items to your customers based in one of the most accuarates recommendation algorithms, we will store the data in a safety way, process it and <strong class="yellow-text">generate recommendations on the fly!</strong><br />
+                Pitia is able to <strong class="yellow-text">scale</strong> according to your present and future necessities.
+            </div>
         </div>
-        <div class="col-md-1 main-how-works"></div>
 
-        <div class="col-md-1 main-high-availability"></div>
-        <div class="col-md-10 text-left main-high-availability">
-            <h2>High Availability</h2>
-            Each group contains at least <strong class="yellow-text">2 shards</strong>, and <strong class="yellow-text">each shard is allocated on a different physical machine</strong> in order to assure that if one of us servers goes down your coustomers will continue receiving the best service. That's why always the first shard in a group is composed by two shards being the same price by the first two than by a single shard.<br />
-            All the provided recommendations are persisted in a <strong class="yellow-text">safe storage system</strong> apart of us data centers in order to warranty that in the worst of the situations we can have the systems up and running with the last provided information in question of minutes.<br />
+        <div class="col-md-12 main-high-availability-wrapper">
+            <div class="col-md-12 text-left main-high-availability">
+                <h2>High Availability</h2>
+                Each group contains at least <strong class="yellow-text">2 shards</strong>, and <strong class="yellow-text">each shard is allocated on a different physical machine</strong> in order to assure that if one of us servers goes down your coustomers will continue receiving the best service. That's why always the first shard in a group is composed by two shards being the same price by the first two than by a single shard.<br />
+                All the provided recommendations are persisted in a <strong class="yellow-text">safe storage system</strong> apart of us data centers in order to warranty that in the worst of the situations we can have the systems up and running with the last provided information in question of minutes.<br />
+            </div>
         </div>
-        <div class="col-md-1 main-high-availability"></div>
 
-        <div class="col-md-1 main-management"></div>
-        <div class="col-md-3 text-right main-management">
-            <a href="/img/manage_pannel.png" id="manage-pannel" data-toggle="lightbox">
-            <img src="/img/manage_pannel.png" alt="Management Pannel" width="300" />
-            </a>
+        <div class="col-md-12 main-management-wrapper">
+            <div class="col-md-4 text-right main-management">
+                <a href="/img/manage_pannel.png" id="manage-pannel" data-toggle="lightbox">
+                <img src="/img/manage_pannel.png" alt="Management Pannel" width="300" />
+                </a>
+            </div>
+            <div class="col-md-8 text-left main-management">
+                <h2>Management Pannel</h2>
+                From the Management pannel you will be able to:
+                <ul>
+                <li>
+                    Add / Remove groups of shards
+                </li>
+                <li>
+                    Change the number of shards by group in an easy way
+                </li>
+                <li>
+                    Watch how many elements are stored on each of the shards
+                </li>
+                <li>
+                    Watch the current status of each of the shards
+                </li>
+                <li>
+                    Watch in real time the number of requests per second and minute on each shard
+                </li>
+                <li>
+                    List the activity log on your account
+                </li>
+                <li>
+                    Access to your billing information
+                </li>
+                </ul>
+            </div>
         </div>
-        <div class="col-md-7 text-left main-management">
-            <h2>Management Pannel</h2>
-            From the Management pannel you will be able to:
-            <ul>
-            <li>
-                Add / Remove groups of shards
-            </li>
-            <li>
-                Change the number of shards by group in an easy way
-            </li>
-            <li>
-                Watch how many elements are stored on each of the shards
-            </li>
-            <li>
-                Watch the current status of each of the shards
-            </li>
-            <li>
-                Watch in real time the number of requests per second and minute on each shard
-            </li>
-            <li>
-                List the activity log on your account
-            </li>
-            <li>
-                Access to your billing information
-            </li>
-            </ul>
-        </div>
-        <div class="col-md-1 main-management"></div>
 
         <div class="col-md-12 text-center main-pricing main-pricing-head">
             <h2>Pricing</h2>
@@ -241,7 +239,6 @@
                 <button type="submit" class="btn btn-success suscribe-form-elem" id="contact-submit">Send!</button>
                 </div>
             </form>
-        </div>
         </div>
     </div>
 
