@@ -33,15 +33,14 @@ lint:
 
 deb:
 	@echo "$(OK_COLOR)==> Building DEB$(NO_COLOR)"
+	rm -rf dist_package
 	mkdir -p dist_package/usr/local/bin
 	mkdir -p dist_package/var/log/pit
-	mkdir -p dist_package/var/www
 	GOOS=linux GOARCH=amd64 go build -o dist_package/usr/local/bin/pit bin/pit.go
 	GOOS=linux GOARCH=amd64 go build -o dist_package/usr/local/bin/pit-cli bin/pit-cli.go
 	rm -rf tmp
 	mkdir tmp
 	cp -a etc dist_package/
-	cp -a static/* dist_package/var/www/
 
 	cd dist_package; tar czvf ../tmp/data.tar.gz *
 
@@ -50,6 +49,22 @@ deb:
 	ar -r pit.deb tmp/debian-binary tmp/control.tar.gz tmp/data.tar.gz
 	rm -rf tmp
 	@echo "$(OK_COLOR)==> Package created: pit.deb$(NO_COLOR)"
+
+static_deb:
+	@echo "$(OK_COLOR)==> Building Static DEB$(NO_COLOR)"
+	rm -rf dist_package
+	mkdir -p dist_package/var/www
+	rm -rf tmp
+	mkdir tmp
+	cp -a static/* dist_package/var/www/
+
+	cd dist_package; tar czvf ../tmp/data.tar.gz *
+
+	cd debian_static; tar czvf ../tmp/control.tar.gz *
+	echo 2.0 > tmp/debian-binary
+	ar -r pit_static.deb tmp/debian-binary tmp/control.tar.gz tmp/data.tar.gz
+	rm -rf tmp
+	@echo "$(OK_COLOR)==> Static Package created: pit_static.deb$(NO_COLOR)"
 
 deploy_dev: deb
 	@ for SERVER in $$PIT_DEV_SERVERS ; do \
@@ -69,4 +84,14 @@ deploy_pro: deb
 	@ for SERVER in $$PIT_PRO_SERVERS ; do \
 		echo "Deploying new code on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
 		ssh -i $$HOME/.ssh/id_rsa_pro_pit root@$$SERVER "dpkg -i /tmp/pit.deb" ; \
+	done
+
+deploy_static_pro: static_deb
+	@ for SERVER in $$PIT_PRO_SERVERS ; do \
+		echo "Uploading code to server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
+		scp -i $$HOME/.ssh/id_rsa_pro_pit pit_static.deb root@$$SERVER:/tmp/pit_static.deb ; \
+	done
+	@ for SERVER in $$PIT_PRO_SERVERS ; do \
+		echo "Deploying new code on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
+		ssh -i $$HOME/.ssh/id_rsa_pro_pit root@$$SERVER "dpkg -i /tmp/pit_static.deb" ; \
 	done
