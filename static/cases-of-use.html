@@ -1,129 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-	<link rel="icon" href="/img/favicon.png">
-        <title>Highly Scalable Recomender System | Pitia</title>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/img/favicon.png">
+<title>Highly Scalable Recomender System | Pitia</title>
 
-        <link href="css/bootstrap.min.css" rel="stylesheet">
-        <link href="css/styles.css" rel="stylesheet">
+<link href="css/bootstrap.min.css" rel="stylesheet">
+<link href="css/styles.css" rel="stylesheet">
 
-        <!--[if lt IE 9]>
-            <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
-            <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-        <![endif]-->
-    </head>
-    <body role="document" class="info">
-        <nav class="navbar navbar-inverse navbar-fixed-top header">
-            <div class="container">
-                <div class="navbar-header">
-		    <a href="/">
-			<div class="logo-header">&nbsp;</div>
-		    </a>
-                </div>
-                <div id="navbar" class="navbar-collapse">
-                    <ul class="nav navbar-nav">
-                        <li><a href="/">Product</a></li>
-                        <li class="active"><a href="cases-of-use">Cases Of Use</a></li>
-                        <li><a href="pricing">Pricing</a></li>
-                        <li><a href="api">API Specifications</a></li>
-			<li><a href="contact-form">Contact</a></li>
-                        <li id="account-pannel-link"><a href="account-pannel">Management Pannel</a></li>
-                    </ul>
-                    <form class="navbar-form navbar-right" id="login-form">
-                        <span id="login-incorrect" class="label label-danger">User/Pass incorrect</span>
-                          <div class="form-group">
-                            <input type="email" placeholder="Email" class="form-control input-sm" id="login-email" required>
-                          </div>
-                          <div class="form-group">
-                            <input type="password" placeholder="Password" class="form-control input-sm" id="login-pass" required>
-                         </div>
-                        <button type="submit" class="btn btn-success btn-sm" id="login-button">Sign in</button>
-                        <!--<button type="submit" class="btn btn-primary">Sign up</button>-->
-                    </form>
-                    <div class="navbar-form navbar-right" id="log-out-div">
-			<small id="account-name-top"></small>
-                        <button type="submit" id="log-out-button" class="btn btn-danger">Log out</button>
-                    </div>
-                </div>
-            </div>
-        </nav>
+<!--[if lt IE 9]>
+	<script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+	<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+<body role="document" class="info">
 
-        <div class="cases-of-use-body" role="main" id="content-container">
-            <div class="row">
-                <div class="col-md-12 text-left cases-of-use-title">
-			<h1>Cases Of Use</h1>
+<!-- Navigation -->
+<nav class="navbar navbar-default navbar-fixed-top top-nav-bar">
+	<div class="container">
+		<!-- Brand and toggle get grouped for better mobile display -->
+		<div class="navbar-header page-scroll">
+			<button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#top-menu-option">
+				<span class="sr-only">Toggle navigation</span>
+				<span class="icon-bar"></span>
+				<span class="icon-bar"></span>
+				<span class="icon-bar"></span>
+				<span class="icon-bar"></span>
+				<span class="icon-bar"></span>
+			</button>
+			<a href="/">
+				<div class="logo-header">&nbsp;</div>
+			</a>
 		</div>
-                <div class="col-md-12 text-left cases-of-use-content">
-			<h2 class="cases-of-use-subtitle">
-			    Item recommendations based on direct measurements
-			</h2>
-			This kind of interest measurement on the products is one of the most commons on some straming applications, online stores, etc. You can add a rating system based on a number of stars, for instance, a movies classification based on a 0 to 5 stars system, and based on the user classifications for hte movies we will be able to predict what are the best movies for this user.<br />
-			This is an easy and direct way, but sometimes the users lie about its preferencies or prefer to don't classify controverted items, in order to improve the recommendations for this cases you can use indirect measurements.
 
-			<h2 class="cases-of-use-subtitle">
-			    Item recommendations based on indirect measurements
-			</h2>
-			If you don't have any rating system implemented in your site, don't worry you can use any kind of indirect mesurement of the user interest for the products, usually this kind of messurement is more precice than a direct measurement, the users never lies on its behaviours.<br />
-			This kind of actions can determine the interest of a user in the product:
-			<ul>
-			    <li>
-				<strong>Time spent on the products</strong> Send to us the time spent by the users watching each of the products during the last week, and we will be able to predict what other products can be of interest for your user
-			    </li>
-			    <li>
-				<strong>Number of visits of the products</strong> Another sign of interest in an item could be the number of times that a user visited this item, so we can predict the interest of the user for another products based on this information
-			    </li>
-			    <li>
-				<strong>Actions on a product</strong> If the user open the attached images of the product, access to the full description of an article and so on, can indicate a grade of interest on the product, you can assign a score for each possible action, and send to us the sum of this score by product
-			    </li>
-			    <li>
-				<strong>...</strong> Any other measurable indicator of interest can be analysed by Pitia in order to provide a great user experience to your customers!
-			    </li>
+		<!-- Collect the nav links, forms, and other content for toggling -->
+		<div class="collapse navbar-collapse" id="top-menu-option">
+			<ul class="nav navbar-nav navbar-right">
+				<li class="hidden">
+					<a href="#page-top"></a>
+				</li>
+
+				<li class="page-scroll">
+					<a href="/">Product</a>
+				</li>
+				<li class="active page-scroll">
+					<a href="cases-of-use">Cases Of Use</a>
+				</li>
+				<li class="page-scroll">
+					<a href="pricing">Pricing</a>
+				</li>
+				<li class="page-scroll">
+					<a href="api">API Specifications</a>
+				</li>
+				<li class="page-scroll">
+					<a href="contact-form">Contact</a>
+				</li>
+				<li id="account-pannel-link" class="page-scroll">
+					<a href="account-panel">Management Panel</a>
+				</li>
+				<li class="dropdown" id="login-dropdown">
+					<a class="dropdown-toggle" href="javascript:void(0);" data-toggle="dropdown">
+						<span class="label label-success">
+							Log In <strong class="caret"></strong>
+						</span>
+					</a>
+					<div class="dropdown-menu login-dropdown-menu">
+						<form class="navbar-form navbar-right" id="login-form">
+							<span id="login-incorrect" class="label label-danger">
+								User/Pass incorrect
+							</span>
+							<div class="login-form-group">
+								<input type="email" placeholder="Email" class="form-control input-sm" id="login-email" required>
+							</div>
+							<div class="login-form-group">
+								<input type="password" placeholder="Password" class="form-control input-sm" id="login-pass" required>
+							</div>
+							<div class="login-form-group">
+								<button type="submit" class="btn btn-success btn-sm" id="login-button">Sign in</button>
+							</div>
+						</form>
+					</div>
+				</li>
+				<li id="logout-container" class="page-scroll">
+					<div class="navbar-form navbar-right" id="log-out-div">
+						<small id="account-name-top"></small>
+						<button type="submit" id="log-out-button" class="btn btn-danger">Log out</button>
+					</div>
+				</li>
 			</ul>
-
-			<strong>Note:</strong> Take care of the bots, a bot like Google, Bing, etc, try to avoid sending this information to Pitia, the behaviour of a bot analysing the site can't be analysed.
 		</div>
-            </div>
-        </div>
+		<!-- /.navbar-collapse -->
+	</div>
+	<!-- /.container-fluid -->
+</nav>
 
-        <footer>
-            <div class="row">
-                <div class="col-md-2 footer-logo">
-                    <a href="/">
-			<div class="logo-foot">&nbsp;</div>
-                    </a>
-                </div>
-                <div class="col-md-10 footer-links text-right">
-                    <a href="contact-form">Contact us</a> 
-                    &nbsp;&nbsp;|&nbsp;&nbsp;
-                    <a href="terms">Terms of Use</a> 
-                    &nbsp;&nbsp;|&nbsp;&nbsp;
-                    <a href="website-terms">Website Terms</a> 
-                    &nbsp;&nbsp;|&nbsp;&nbsp;
-                    <a href="privacy">Privacy Policy</a> 
-                    &nbsp;&nbsp;|&nbsp;&nbsp;
-                    <a href="security">Security Policy</a>
-                </div>
-            </div>
-        </footer>
+<div class="row">
+	<div class="col-md-12 text-left cases-of-use-content">
+		<h1>Cases Of Use</h1>
 
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-        <script src="js/bootstrap.min.js"></script>
-        <script src="js/pit/bootstrap.js"></script>
-        <script src="js/pit/controllers/contact-form.js"></script>
-        <script src="js/pit/controllers/login.js"></script>
-        <script src="js/pit/controllers/groups.js"></script>
+		<h2 class="cases-of-use-subtitle">
+			Item recommendations based on direct measurements
+		</h2>
+		This kind of interest measurement on the products is one of the most commons on some streaming applications, online stores, etc.<br />
+		For instance, you could add a <strong class="red-text">rating system</strong> based on a number of stars, like a movies classification based on a 0 to 5 stars system, and based on the previous user classifications for the movies we will be able to predict what are the best movies for each user.<br />
+		<div class="how_works_image"></div>
+		This is an easy and direct way, but sometimes the users lie about its preferences or they prefer to don't classify some controverted items. In order to improve the recommendations for this cases you can use <strong class="red-text">indirect measurements.</strong>
 
-	<script>
-	    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		<h2 class="cases-of-use-subtitle">
+			Item recommendations based on indirect measurements
+		</h2>
+		If you don't have any rating system implemented in your site, don't worry you can use any kind of indirect measurement of the user interest for the items, usually this kind of measurement is more precise than a direct measurement, <strong class="red-text">a user never lies on its behaviours</strong>.<br /><br />
+		This kind of actions can determine the interest of a user in the product:
+		<ul>
+			<li>
+				<strong>Time spent on the products</strong> Send to us the time spent by the users watching each of the products during the last week, and we will be able to predict what other products can be of interest for this user
+			</li>
+			<li>
+				<strong>Number of visits of the products</strong> Another sign of interest for an item could be the number of times that a user has visited it, so we can predict the interest of the user for another items based on this information
+			</li>
+			<li>
+				<strong>Actions on a product</strong> If the user open the attached images of the product, access to the full description of an article and so on, could be an indicative of the grade of interest on the product, you can assign a score for each possible action, and send to us the sum of this scores by item
+			</li>
+			<li>
+				<strong>...</strong> Any other measurable indicator of interest can be analysed by Pitia in order to provide a great user experience to your customers!
+			</li>
+		</ul>
+		<br />
+		<strong>Note:</strong> Take care of the bots, a bot like Google, Bing, etc can have an arbitrary behaviour that doesn't gives any value to the collected data, try to avoid sending this information to Pitia.
+	</div>
+</div>
+
+<footer>
+	<div class="row">
+		<div class="col-sm-2 footer-logo">
+			<a href="/">
+				<div class="logo-foot">&nbsp;</div>
+			</a>
+		</div>
+		<div class="col-md-10 footer-links text-right">
+			<a href="contact-form">Contact us</a> 
+			&nbsp;&nbsp;|&nbsp;&nbsp;
+			<a href="terms">Terms of Use</a> 
+			&nbsp;&nbsp;|&nbsp;&nbsp;
+			<a href="website-terms">Website Terms</a> 
+			&nbsp;&nbsp;|&nbsp;&nbsp;
+			<a href="privacy">Privacy Policy</a> 
+			&nbsp;&nbsp;|&nbsp;&nbsp;
+			<a href="security">Security Policy</a>
+		</div>
+	</div>
+</footer>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<script src="js/bootstrap.min.js"></script>
+<script src="js/pit/bootstrap.js"></script>
+<script src="js/pit/controllers/contact-form.js"></script>
+<script src="js/pit/controllers/login.js"></script>
+<script src="js/pit/controllers/groups.js"></script>
+
+<script>
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
 		 (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
 		 m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-	     })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+	})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
 
-	    ga('create', 'UA-61992892-1', 'auto');
-	    ga('send', 'pageview');
-	</script>
-    </body>
+	ga('create', 'UA-61992892-1', 'auto');
+	ga('send', 'pageview');
+</script>
+</body>
 </html>

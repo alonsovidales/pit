@@ -6,8 +6,8 @@ var LoginController = (function() {
 		return (user && key && user !== "undefined" && key !== "undefined");
 	};
 
-	var loginForm = $("#login-form");
-	var logOutDiv = $("#log-out-div");
+	var loginForm = $("#login-dropdown");
+	var logOutDiv = $("#logout-container");
 	var loginButton = $("#login-button");
 	var logOutButton = $("#log-out-button");
 	var loginIncorrect = $("#login-incorrect");

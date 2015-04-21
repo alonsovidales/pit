@@ -22,8 +22,6 @@ var GroupsController = (function() {
 		}
 	};
 
-	console.log("Groups controller", LoginController.getUser(), LoginController.getKey());
-
 	var getShardsInfo = function(groupId, callback) {
 		$.ajax({
 			type: 'POST',
@@ -233,7 +231,6 @@ var GroupsController = (function() {
 			});
 
 			getShardsInfo(k, function(shardsData) {
-				console.log(shardsData);
 				var shardsGroupContainer = $("#group-shards-" + k);
 				$.each(shardsData, function(host, shardInfo) {
 					var statusLevel;
@@ -268,7 +265,6 @@ var GroupsController = (function() {
 					};
 					shardsGroupContainer.append(shardsTemplate(templateInfo));
 
-					console.log(host, hostSanit);
 					// Add the animated chart at the bottom
 					addAnimatedChar("Req/sec", $("#req-sec-stats-" + k + "-" + hostSanit), k + "-sec-" + hostSanit, shardInfo.queries_by_sec, 1);
 					addAnimatedChar("Req/min", $("#req-min-stats-" + k + "-" + hostSanit), k + "-min-" + hostSanit, shardInfo.queries_by_min, 60);

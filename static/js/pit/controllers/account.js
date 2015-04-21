@@ -51,7 +51,6 @@ var AccountController = (function() {
 					var i = 1;
 					$.each(data, function(type, logs) {
 						$.each(logs, function(_, line) {
-							console.log("Line:", line);
 							var d = new Date(line.ts * 1000);
 
 							logsTableBody.append($("\
