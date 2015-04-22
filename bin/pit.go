@@ -43,7 +43,8 @@ func main() {
 		cfg.GetStr("aws", "region"),
 		cfg.GetStr("aws", "s3-backups-path"),
 		int(cfg.GetInt("rec-api", "port")),
-		usersModel)
+		usersModel,
+		cfg.GetStr("mail", "addr"))
 
 	api.Init(
 		shardsManager,

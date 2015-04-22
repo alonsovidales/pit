@@ -83,7 +83,7 @@ type GroupInfo struct {
 type ModelInt interface {
 	GetAllGroups() map[string]map[string]*GroupInfo
 	GetAllGroupsByUserID(uid string) map[string]*GroupInfo
-	GetGroupByUserKeyId(userID, secret, groupID string) (gr *GroupInfo, err error)
+	GetGroupByUserKeyID(userID, secret, groupID string) (gr *GroupInfo, err error)
 	GetGroupByID(groupID string) (gr *GroupInfo)
 	AddUpdateGroup(userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error)
 	ReleaseAllAcquiredShards()
@@ -101,17 +101,19 @@ type Model struct {
 	shardsTable     *dynamodb.Table
 	groupsTableName string
 	shardsTableName string
+	adminEmail string
 	groupsMutex     sync.Mutex
 	shardsMutex     sync.Mutex
 	conn            *dynamodb.Server
 }
 
-func GetModel(prefix, awsRegion string) (md *Model) {
+func GetModel(prefix, awsRegion, adminEmail string) (md *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
 		md = &Model{
 			groupsTableName: fmt.Sprintf("%s_%s", prefix, cGroupsTable),
 			shardsTableName: fmt.Sprintf("%s_%s", prefix, cShardsTable),
 			groups:          make(map[string]map[string]*GroupInfo),
+			adminEmail:      adminEmail,
 			conn: &dynamodb.Server{
 				Auth:   awsAuth,
 				Region: aws.Regions[awsRegion],
@@ -203,6 +205,17 @@ func (md *Model) GetGroupByID(groupID string) (gr *GroupInfo) {
 }
 
 func (md *Model) GetAllGroupsByUserID(uid string) map[string]*GroupInfo {
+	if uid == md.adminEmail {
+		result := make(map[string]*GroupInfo)
+		for _, userGroups := range md.groups {
+			for k, v := range userGroups {
+				result[k] = v
+			}
+		}
+
+		return result
+	}
+
 	return md.groups[uid]
 }
 
@@ -213,6 +226,17 @@ func (md *Model) GetAllGroups() map[string]map[string]*GroupInfo {
 func (md *Model) GetGroupByUserKeyID(userID, secret, groupID string) (gr *GroupInfo, err error) {
 	md.groupsMutex.Lock()
 	defer md.groupsMutex.Unlock()
+
+	if userID == md.adminEmail {
+		for _, groups := range md.groups {
+			for gID, group := range groups {
+				if gID == groupID && secret == group.Secret {
+					return group, nil
+				}
+			}
+		}
+	}
+
 	if userGroups, ugOk := md.groups[userID]; ugOk {
 		if group, grOk := userGroups[groupID]; grOk {
 			if group.Secret == secret {

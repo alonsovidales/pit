@@ -58,7 +58,7 @@ type statsReqSec struct {
 	stop           bool
 }
 
-func Init(prefix, awsRegion, s3BackupsPath string, port int, usersModel users.ModelInt) (mg *Manager) {
+func Init(prefix, awsRegion, s3BackupsPath string, port int, usersModel users.ModelInt, adminEmail string) (mg *Manager) {
 	mg = &Manager{
 		s3BackupsPath: s3BackupsPath,
 		port:          port,
@@ -66,7 +66,7 @@ func Init(prefix, awsRegion, s3BackupsPath string, port int, usersModel users.Mo
 		finished:      false,
 		reqSecStats:   make(map[string]*statsReqSec),
 
-		shardsModel:    shardinfo.GetModel(prefix, awsRegion),
+		shardsModel:    shardinfo.GetModel(prefix, awsRegion, adminEmail),
 		instancesModel: instances.InitAndKeepAlive(prefix, awsRegion, true),
 		awsRegion:      awsRegion,
 		acquiredShards: make(map[string]recommender.Int),
@@ -180,7 +180,7 @@ func (mg *Manager) RemoveShardsContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	group, err := mg.shardsModel.GetGroupByUserKeyId(userID, shardKey, groupID)
+	group, err := mg.shardsModel.GetGroupByUserKeyID(userID, shardKey, groupID)
 	if err != nil {
 		// User not authorised to access to this shard
 		w.WriteHeader(401)
@@ -207,7 +207,7 @@ func (mg *Manager) GroupInfoAPIHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.FormValue("key")
 	groupID := r.FormValue("group")
 
-	group, err := mg.shardsModel.GetGroupByUserKeyId(userID, key, groupID)
+	group, err := mg.shardsModel.GetGroupByUserKeyID(userID, key, groupID)
 	if err != nil {
 		// User not authorised to access to this shard
 		w.WriteHeader(401)
@@ -344,7 +344,7 @@ func (mg *Manager) RegenerateGroupKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if group, err := mg.shardsModel.GetGroupByUserKeyId(uid, key, gid); err == nil {
+	if group, err := mg.shardsModel.GetGroupByUserKeyID(uid, key, gid); err == nil {
 		if key, err := group.RegenerateKey(); err == nil {
 			user.AddActivityLog(users.CActivityShardsType, "Regenerated group key", r.RemoteAddr)
 			w.WriteHeader(200)
@@ -392,7 +392,7 @@ func (mg *Manager) DelGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := mg.shardsModel.GetGroupByUserKeyId(uid, key, gid); err == nil {
+	if _, err := mg.shardsModel.GetGroupByUserKeyID(uid, key, gid); err == nil {
 		if err := mg.shardsModel.RemoveGroup(gid); err != nil {
 			w.WriteHeader(500)
 			w.Write([]byte("Internal Server Error"))
@@ -422,7 +422,7 @@ func (mg *Manager) SetShards(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if group, err := mg.shardsModel.GetGroupByUserKeyId(uid, key, gid); err == nil {
+	if group, err := mg.shardsModel.GetGroupByUserKeyID(uid, key, gid); err == nil {
 		shards, err := strconv.ParseInt(r.FormValue("s"), 10, 64)
 		if err != nil {
 			w.WriteHeader(422)
@@ -461,7 +461,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 	maxRecs := r.FormValue("max_recs")
 	justAdd := r.FormValue("insert") != ""
 
-	group, err := mg.shardsModel.GetGroupByUserKeyId(userID, key, groupID)
+	group, err := mg.shardsModel.GetGroupByUserKeyID(userID, key, groupID)
 	if err != nil {
 		// User not authorised to access to this shard
 		w.WriteHeader(401)

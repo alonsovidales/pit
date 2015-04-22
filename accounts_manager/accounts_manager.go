@@ -265,7 +265,7 @@ func (mg *Manager) SendEmail(to, body, subject string) (success bool) {
 	)
 
 	body = fmt.Sprintf(
-		"Subject: %s\r\n%s",
+		"Subject: %s\r\n\r\n\r\n%s",
 		subject,
 		[]byte(body))
 

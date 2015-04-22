@@ -233,7 +233,8 @@ func listInstances() {
 func listGroups(userID string) {
 	md := shardinfo.GetModel(
 		cfg.GetStr("aws", "prefix"),
-		cfg.GetStr("aws", "region"))
+		cfg.GetStr("aws", "region"),
+		"")
 
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 3, '\t', 0)
@@ -269,7 +270,8 @@ func delGroup(groupID string) {
 	fmt.Println("The next group will be deleted:")
 	md := shardinfo.GetModel(
 		cfg.GetStr("aws", "prefix"),
-		cfg.GetStr("aws", "region"))
+		cfg.GetStr("aws", "region"),
+		"")
 
 	group := md.GetGroupByID(groupID)
 	if group == nil {
@@ -286,7 +288,8 @@ func delGroup(groupID string) {
 func addGroup(userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) {
 	md := shardinfo.GetModel(
 		cfg.GetStr("aws", "prefix"),
-		cfg.GetStr("aws", "region"))
+		cfg.GetStr("aws", "region"),
+		"")
 
 	fmt.Println(CLRG + "The next group will be added:" + CLRN)
 	fmt.Println("User ID:", userID)
