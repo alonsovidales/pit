@@ -92,8 +92,6 @@ type ModelInt interface {
 }
 
 type Model struct {
-	ModelInt
-
 	// groups by user ID and Group ID
 	groups map[string]map[string]*GroupInfo
 
@@ -101,7 +99,7 @@ type Model struct {
 	shardsTable     *dynamodb.Table
 	groupsTableName string
 	shardsTableName string
-	adminEmail string
+	adminEmail      string
 	groupsMutex     sync.Mutex
 	shardsMutex     sync.Mutex
 	conn            *dynamodb.Server

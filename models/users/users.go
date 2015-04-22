@@ -50,8 +50,6 @@ type LogLine struct {
 }
 
 type Model struct {
-	ModelInt
-
 	prefix    string
 	secret    []byte
 	tableName string

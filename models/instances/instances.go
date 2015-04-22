@@ -26,8 +26,6 @@ type ModelInt interface {
 }
 
 type Model struct {
-	ModelInt
-
 	prefix         string
 	table          *dynamodb.Table
 	instancesAlive []string
