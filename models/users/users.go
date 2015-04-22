@@ -34,7 +34,7 @@ type ModelInt interface {
 	GetRegisteredUsers() (users map[string]*User)
 }
 
-type UsersInt interface {
+type Int interface {
 	DisableUser() (persisted bool)
 	EnableUser() (persisted bool)
 	UpdateUser(key string) bool
@@ -44,7 +44,7 @@ type UsersInt interface {
 
 type LogLine struct {
 	Ts      int64  `json:"ts"`
-	Ip      string `json:"ip"`
+	IP      string `json:"ip"`
 	LogType string `json:"type"`
 	Desc    string `json:"desc"`
 }
@@ -60,7 +60,7 @@ type Model struct {
 }
 
 type User struct {
-	UsersInt `json:"-"`
+	Int `json:"-"`
 
 	uid     string
 	key     string
@@ -68,7 +68,7 @@ type User struct {
 	logs    map[string][]*LogLine
 
 	RegTs int64  `json:"reg_ts"`
-	RegIp string `json:"reg_ip"`
+	RegIP string `json:"reg_ip"`
 
 	mutex sync.Mutex
 	md    *Model
@@ -109,7 +109,7 @@ func (um *Model) RegisterUserPlainKey(uid string, key string, ip string) (*User,
 		logs:    make(map[string][]*LogLine),
 
 		RegTs: time.Now().Unix(),
-		RegIp: ip,
+		RegIP: ip,
 
 		md: um,
 	}
@@ -210,7 +210,7 @@ func (us *User) AddActivityLog(actionType string, desc, ip string) bool {
 	}
 
 	us.logs[actionType] = append(us.logs[actionType], &LogLine{
-		Ip:      ip,
+		IP:      ip,
 		Ts:      time.Now().Unix(),
 		LogType: actionType,
 		Desc:    desc,
@@ -238,14 +238,14 @@ func (um *Model) delTable() {
 }
 
 func (us *User) persist() bool {
-	userJsonInfo, _ := json.Marshal(us)
-	userJsonLogs, _ := json.Marshal(us.logs)
+	userJSONInfo, _ := json.Marshal(us)
+	userJSONLogs, _ := json.Marshal(us.logs)
 
 	attribs := []dynamodb.Attribute{
 		*dynamodb.NewStringAttribute(cPrimKey, us.uid),
 		*dynamodb.NewStringAttribute("key", us.key),
-		*dynamodb.NewStringAttribute("info", string(userJsonInfo)),
-		*dynamodb.NewStringAttribute("logs", string(userJsonLogs)),
+		*dynamodb.NewStringAttribute("info", string(userJSONInfo)),
+		*dynamodb.NewStringAttribute("logs", string(userJSONLogs)),
 		*dynamodb.NewStringAttribute("enabled", string(us.Enabled)),
 	}
 

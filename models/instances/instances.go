@@ -19,14 +19,14 @@ const (
 	cTTL               = 30
 )
 
-type InstancesModelInt interface {
+type ModelInt interface {
 	GetTotalInstances() int
 	GetInstances() (instances []string)
 	GetMaxShardsToAdquire(totalShards int) int
 }
 
-type InstancesModel struct {
-	InstancesModelInt
+type Model struct {
+	ModelInt
 
 	prefix         string
 	table          *dynamodb.Table
@@ -62,9 +62,9 @@ func SetHostname(hn string) {
 	hostName = hn
 }
 
-func InitAndKeepAlive(prefix string, awsRegion string, keepAlive bool) (im *InstancesModel) {
+func InitAndKeepAlive(prefix string, awsRegion string, keepAlive bool) (im *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
-		im = &InstancesModel{
+		im = &Model{
 			prefix:    prefix,
 			tableName: fmt.Sprintf("%s_%s", prefix, cTable),
 			conn: &dynamodb.Server{
@@ -95,7 +95,7 @@ func InitAndKeepAlive(prefix string, awsRegion string, keepAlive bool) (im *Inst
 	return
 }
 
-func (im *InstancesModel) GetMaxShardsToAdquire(totalShards int) (total int) {
+func (im *Model) GetMaxShardsToAdquire(totalShards int) (total int) {
 	im.mutex.Lock()
 	defer im.mutex.Unlock()
 
@@ -112,7 +112,7 @@ func (im *InstancesModel) GetMaxShardsToAdquire(totalShards int) (total int) {
 	return
 }
 
-func (im *InstancesModel) GetTotalInstances() int {
+func (im *Model) GetTotalInstances() int {
 	if len(im.instancesAlive) == 0 {
 		return 1
 	}
@@ -120,7 +120,7 @@ func (im *InstancesModel) GetTotalInstances() int {
 	return len(im.instancesAlive)
 }
 
-func (im *InstancesModel) GetInstances() (instances []string) {
+func (im *Model) GetInstances() (instances []string) {
 	im.mutex.Lock()
 	instances = make([]string, len(im.instancesAlive))
 	copy(instances, im.instancesAlive)
@@ -129,7 +129,7 @@ func (im *InstancesModel) GetInstances() (instances []string) {
 	return
 }
 
-func (im *InstancesModel) delTable() {
+func (im *Model) delTable() {
 	if tableDesc, err := im.conn.DescribeTable(im.tableName); err == nil {
 		if _, err = im.conn.DeleteTable(*tableDesc); err != nil {
 			log.Error("Can't remove Dynamo table:", im.tableName, "Error:", err)
@@ -139,7 +139,7 @@ func (im *InstancesModel) delTable() {
 	}
 }
 
-func (im *InstancesModel) registerHostName(hostName string) {
+func (im *Model) registerHostName(hostName string) {
 	attribs := []dynamodb.Attribute{
 		*dynamodb.NewStringAttribute(cPrimKey, hostName),
 		*dynamodb.NewStringAttribute("ts", fmt.Sprintf("%d", time.Now().Unix())),
@@ -150,7 +150,7 @@ func (im *InstancesModel) registerHostName(hostName string) {
 	}
 }
 
-func (im *InstancesModel) updateInstances() {
+func (im *Model) updateInstances() {
 	if rows, err := im.table.Scan(nil); err == nil {
 		instances := []string{}
 		for _, row := range rows {
@@ -180,7 +180,7 @@ func (im *InstancesModel) updateInstances() {
 	}
 }
 
-func (im *InstancesModel) initTable() {
+func (im *Model) initTable() {
 	pKey := dynamodb.PrimaryKey{dynamodb.NewStringAttribute(cPrimKey, ""), nil}
 	im.table = im.conn.NewTable(im.tableName, pKey)
 

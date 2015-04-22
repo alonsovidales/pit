@@ -46,18 +46,18 @@ func TestAddGroupPersistAndRead(t *testing.T) {
 
 	time.Sleep(time.Second * (cUpdatePeriod * 2))
 
-	grById, err := md.GetGroupByUserKeyId("dljvnekw", "secret", "123")
-	if err != CErrGroupUserNotFound || grById != nil {
+	grByID, err := md.GetGroupByUserKeyId("dljvnekw", "secret", "123")
+	if err != CErrGroupUserNotFound || grByID != nil {
 		t.Error("Trying to get a group for an unexisting user, but the system didn't return the corresponding error, error returned:", err)
 	}
 
-	grById, err = md.GetGroupByUserKeyId("userID", "secret", "123")
-	if err != CErrGroupNotFound || grById != nil {
+	grByID, err = md.GetGroupByUserKeyId("userID", "secret", "123")
+	if err != CErrGroupNotFound || grByID != nil {
 		t.Error("Trying to get a unexisting group, but the system didn't return the corresponding error, error returned:", err)
 	}
 
-	grById, err = md.GetGroupByUserKeyId("userID", "asd", "groupId")
-	if err != CErrAuth || grById != nil {
+	grByID, err = md.GetGroupByUserKeyId("userID", "asd", "groupId")
+	if err != CErrAuth || grByID != nil {
 		t.Error("Trying to get a group using unvalid credentials, but the system didn't return the corresponding error, error returned:", err)
 	}
 

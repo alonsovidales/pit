@@ -47,8 +47,8 @@ func TestRecommenderSaveLoad(t *testing.T) {
 	i := 0
 	for e == nil && i < 100000 {
 		s, e = Readln(r)
-		recId, scores := parseLine(s)
-		sh.AddRecord(recId, scores)
+		recID, scores := parseLine(s)
+		sh.AddRecord(recID, scores)
 		i++
 		if i%1000 == 0 {
 			log.Debug("Lines processed:", i)
@@ -75,8 +75,8 @@ func TestRecommenderSaveLoad(t *testing.T) {
 	}
 
 	s, e = Readln(r)
-	recId, scores := parseLine(s)
-	recomendationsBef := sh.CalcScores(recId, scores, 10)
+	recID, scores := parseLine(s)
+	recomendationsBef := sh.CalcScores(recID, scores, 10)
 	if len(recomendationsBef) != 10 {
 		t.Error("The expected recommendations was 10, but:", len(recomendationsBef), "obtained.")
 	}
@@ -101,7 +101,7 @@ func TestRecommenderSaveLoad(t *testing.T) {
 			"but after load the backup is:", sh.totalClassif)
 	}
 
-	recomendationsAfter := sh.CalcScores(recId, scores, 10)
+	recomendationsAfter := sh.CalcScores(recID, scores, 10)
 	if len(recomendationsAfter) != 10 {
 		t.Error("The expected recommendations was 10, but:", len(recomendationsAfter), "obtained.")
 	}
@@ -110,9 +110,10 @@ func TestRecommenderSaveLoad(t *testing.T) {
 }
 
 func Readln(r *bufio.Reader) (string, error) {
-	var isPrefix bool = true
-	var err error = nil
+	var err error
 	var line, ln []byte
+
+	isPrefix := true
 	for isPrefix && err == nil {
 		line, isPrefix, err = r.ReadLine()
 		ln = append(ln, line...)
@@ -121,10 +122,10 @@ func Readln(r *bufio.Reader) (string, error) {
 	return string(ln), err
 }
 
-func parseLine(line string) (recordId uint64, values map[uint64]uint8) {
+func parseLine(line string) (recordID uint64, values map[uint64]uint8) {
 	parts := strings.SplitN(line, ":", 2)
-	recordIdOrig, _ := strconv.ParseInt(parts[0], 10, 64)
-	recordId = uint64(recordIdOrig)
+	recordIDOrig, _ := strconv.ParseInt(parts[0], 10, 64)
+	recordID = uint64(recordIDOrig)
 
 	valuesAux := make(map[string]uint8)
 	if len(parts) < 2 {

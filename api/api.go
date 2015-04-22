@@ -11,43 +11,43 @@ import (
 
 const (
 	cHealtyPath = "/check_healty"
-	cContact = "/contact"
+	cContact    = "/contact"
 )
 
-type Api struct {
+type API struct {
 	shardsManager   *shardsmanager.Manager
 	accountsManager *accountsmanager.Manager
 	staticPath      string
 
-	muxHttpServer *http.ServeMux
+	muxHTTPServer *http.ServeMux
 }
 
-func Init(shardsManager *shardsmanager.Manager, accountsManager *accountsmanager.Manager, staticPath string, httpPort, httpsPort int, cert, key string) (api *Api, sslApi *Api) {
-	api = &Api{
+func Init(shardsManager *shardsmanager.Manager, accountsManager *accountsmanager.Manager, staticPath string, httpPort, httpsPort int, cert, key string) (api *API, sslAPI *API) {
+	api = &API{
 		shardsManager:   shardsManager,
 		accountsManager: accountsManager,
-		muxHttpServer:   http.NewServeMux(),
+		muxHTTPServer:   http.NewServeMux(),
 		staticPath:      staticPath,
 	}
-	api.registerApis(false)
+	api.registerAPIs(false)
 	log.Info("Starting API server on port:", httpPort)
-	go http.ListenAndServe(fmt.Sprintf(":%d", httpPort), api.muxHttpServer)
+	go http.ListenAndServe(fmt.Sprintf(":%d", httpPort), api.muxHTTPServer)
 
 	// SSL Server, will not serve the /rec method by performance issues
-	sslApi = &Api{
+	sslAPI = &API{
 		shardsManager:   shardsManager,
 		accountsManager: accountsManager,
-		muxHttpServer:   http.NewServeMux(),
+		muxHTTPServer:   http.NewServeMux(),
 		staticPath:      staticPath,
 	}
-	sslApi.registerApis(true)
+	sslAPI.registerAPIs(true)
 	log.Info("Starting SSL API server on port:", httpsPort)
-	go http.ListenAndServeTLS(fmt.Sprintf(":%d", httpsPort), cert, key, sslApi.muxHttpServer)
+	go http.ListenAndServeTLS(fmt.Sprintf(":%d", httpsPort), cert, key, sslAPI.muxHTTPServer)
 
 	return
 }
 
-func (api *Api) contact(w http.ResponseWriter, r *http.Request) {
+func (api *API) contact(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	email := r.FormValue("mail")
@@ -66,34 +66,34 @@ func (api *Api) contact(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (api *Api) registerApis(ssl bool) {
+func (api *API) registerAPIs(ssl bool) {
 	if !ssl {
-		api.muxHttpServer.HandleFunc(shardsmanager.CRecPath, api.shardsManager.ScoresApiHandler)
+		api.muxHTTPServer.HandleFunc(shardsmanager.CRecPath, api.shardsManager.ScoresAPIHandler)
 	}
 
-	api.muxHttpServer.HandleFunc(shardsmanager.CGroupInfoPath, api.shardsManager.GroupInfoApiHandler)
+	api.muxHTTPServer.HandleFunc(shardsmanager.CGroupInfoPath, api.shardsManager.GroupInfoAPIHandler)
 
-	api.muxHttpServer.HandleFunc(cHealtyPath, func(w http.ResponseWriter, r *http.Request) {
+	api.muxHTTPServer.HandleFunc(cHealtyPath, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	})
 
-	api.muxHttpServer.HandleFunc(shardsmanager.CRegenerateGroupKey, api.shardsManager.RegenerateGroupKey)
-	api.muxHttpServer.HandleFunc(shardsmanager.CGetGroupsByUser, api.shardsManager.GetGroupsByUser)
-	api.muxHttpServer.HandleFunc(shardsmanager.CAddUpdateGroup, api.shardsManager.AddUpdateGroup)
-	api.muxHttpServer.HandleFunc(shardsmanager.CSetShardsGroup, api.shardsManager.SetShards)
-	api.muxHttpServer.HandleFunc(shardsmanager.CRemoveShardsContent, api.shardsManager.RemoveShardsContent)
+	api.muxHTTPServer.HandleFunc(shardsmanager.CRegenerateGroupKey, api.shardsManager.RegenerateGroupKey)
+	api.muxHTTPServer.HandleFunc(shardsmanager.CGetGroupsByUser, api.shardsManager.GetGroupsByUser)
+	api.muxHTTPServer.HandleFunc(shardsmanager.CAddUpdateGroup, api.shardsManager.AddUpdateGroup)
+	api.muxHTTPServer.HandleFunc(shardsmanager.CSetShardsGroup, api.shardsManager.SetShards)
+	api.muxHTTPServer.HandleFunc(shardsmanager.CRemoveShardsContent, api.shardsManager.RemoveShardsContent)
 
-	api.muxHttpServer.HandleFunc(accountsmanager.CRegisterPath, api.accountsManager.Register)
-	api.muxHttpServer.HandleFunc(accountsmanager.CVerifyPath, api.accountsManager.Verify)
-	api.muxHttpServer.HandleFunc(accountsmanager.CLogsPath, api.accountsManager.Logs)
-	api.muxHttpServer.HandleFunc(accountsmanager.CRecoverPassPath, api.accountsManager.RecoverPass)
-	api.muxHttpServer.HandleFunc(accountsmanager.CChangePass, api.accountsManager.ChangePass)
-	api.muxHttpServer.HandleFunc(accountsmanager.CDisablePath, api.accountsManager.Disable)
+	api.muxHTTPServer.HandleFunc(accountsmanager.CRegisterPath, api.accountsManager.Register)
+	api.muxHTTPServer.HandleFunc(accountsmanager.CVerifyPath, api.accountsManager.Verify)
+	api.muxHTTPServer.HandleFunc(accountsmanager.CLogsPath, api.accountsManager.Logs)
+	api.muxHTTPServer.HandleFunc(accountsmanager.CRecoverPassPath, api.accountsManager.RecoverPass)
+	api.muxHTTPServer.HandleFunc(accountsmanager.CChangePass, api.accountsManager.ChangePass)
+	api.muxHTTPServer.HandleFunc(accountsmanager.CDisablePath, api.accountsManager.Disable)
 
-	api.muxHttpServer.HandleFunc(cContact, api.contact)
+	api.muxHTTPServer.HandleFunc(cContact, api.contact)
 
-	api.muxHttpServer.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	api.muxHTTPServer.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		filePath := r.URL.Path[1:]
 		path := api.staticPath + filePath
 		lastPosSlash := -1

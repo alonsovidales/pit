@@ -115,7 +115,7 @@ func listUsers() {
 
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 3, '\t', 0)
-	fmt.Fprintln(w, "Uid\tEnabled\tRegTs\tRegIp\tLogLines")
+	fmt.Fprintln(w, "Uid\tEnabled\tRegTs\tRegIP\tLogLines")
 	fmt.Fprintln(w, "---\t-------\t-----\t-----\t--------")
 
 	for uid, user := range md.GetRegisteredUsers() {
@@ -129,7 +129,7 @@ func listUsers() {
 			uid,
 			user.Enabled,
 			user.RegTs,
-			user.RegIp,
+			user.RegIP,
 			lines)
 	}
 	w.Flush()
@@ -162,7 +162,7 @@ func showUserInfo(uid string) {
 	fmt.Println("ID:", uid)
 	fmt.Println("Enabled:", user.Enabled)
 	fmt.Println("Registered TS:", user.RegTs)
-	fmt.Println("Registered IP:", user.RegIp)
+	fmt.Println("Registered IP:", user.RegIP)
 	fmt.Println("Activity Logs:")
 
 	w := new(tabwriter.Writer)
@@ -230,7 +230,7 @@ func listInstances() {
 	}
 }
 
-func listGroups(userId string) {
+func listGroups(userID string) {
 	md := shardinfo.GetModel(
 		cfg.GetStr("aws", "prefix"),
 		cfg.GetStr("aws", "region"))
@@ -265,32 +265,32 @@ func listGroups(userId string) {
 	w.Flush()
 }
 
-func delGroup(groupId string) {
+func delGroup(groupID string) {
 	fmt.Println("The next group will be deleted:")
 	md := shardinfo.GetModel(
 		cfg.GetStr("aws", "prefix"),
 		cfg.GetStr("aws", "region"))
 
-	group := md.GetGroupByID(groupId)
+	group := md.GetGroupByID(groupID)
 	if group == nil {
-		fmt.Println("Group not found with ID:", groupId)
+		fmt.Println("Group not found with ID:", groupID)
 		return
 	}
 
 	if askForConfirmation() {
-		md.RemoveGroup(groupId)
+		md.RemoveGroup(groupID)
 		fmt.Println("Group removed")
 	}
 }
 
-func addGroup(userId, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) {
+func addGroup(userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) {
 	md := shardinfo.GetModel(
 		cfg.GetStr("aws", "prefix"),
 		cfg.GetStr("aws", "region"))
 
 	fmt.Println(CLRG + "The next group will be added:" + CLRN)
-	fmt.Println("User ID:", userId)
-	fmt.Println("Group ID:", groupId)
+	fmt.Println("User ID:", userID)
+	fmt.Println("Group ID:", groupID)
 	fmt.Println("Num Shards:", numShards)
 	fmt.Println("Max elements:", maxElements)
 	fmt.Println("Max requests by sec / shard:", maxReqSec)
@@ -298,7 +298,7 @@ func addGroup(userId, groupId string, numShards int, maxElements, maxReqSec, max
 	fmt.Println("Max score:", maxScore)
 
 	if askForConfirmation() {
-		_, key, err := md.AddUpdateGroup(userId, groupId, numShards, maxElements, maxReqSec, maxInsertReqSec, maxScore)
+		_, key, err := md.AddUpdateGroup(userID, groupID, numShards, maxElements, maxReqSec, maxInsertReqSec, maxScore)
 		if err != nil {
 			fmt.Println("Problem adding a new group, Error:", err)
 		} else {

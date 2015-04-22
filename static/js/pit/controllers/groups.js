@@ -103,6 +103,9 @@ var GroupsController = (function() {
 	};
 
 	var addAnimatedChar = function(title, targetDiv, id, initialInfo, timeMult) {
+		if (initialInfo.length > 1000) {
+			initialInfo = initialInfo.slice(initialInfo.length-1000);
+		}
 		targetDiv.highcharts({
 			chart: {
 				type: 'spline',

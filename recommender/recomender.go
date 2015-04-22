@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	STATUS_LOADING   = "LOADING"
-	STATUS_SARTING   = "STARTING"
-	STATUS_ACTIVE    = "ACTIVE"
-	STATUS_NORECORDS = "NO_RECORDS"
+	StatusLoading   = "LOADING"
+	StatusStarting  = "STARTING"
+	StatusActive    = "ACTIVE"
+	StatusNoRecords = "NO_RECORDS"
 
 	cMinRecordsToStart = 100
 	cRecTreeMaxDeep    = 30
@@ -28,7 +28,7 @@ const (
 	S3BUCKET = "pit-backups"
 )
 
-type RecommenderInt interface {
+type Int interface {
 	// Calculates the scores for the given records, and stores in memory
 	// the classification for further processing
 	CalcScores(recID uint64, scores map[uint64]uint8, maxToReturn int) (result []uint64)
@@ -62,7 +62,7 @@ type score struct {
 }
 
 type Recommender struct {
-	RecommenderInt
+	Int
 
 	identifier string
 	maxScore   uint8
@@ -74,18 +74,18 @@ type Recommender struct {
 
 	status string
 
-	records map[uint64]*score
+	records       map[uint64]*score
 	cloningBuffer map[uint64]map[uint64]uint8
-	older   *score
-	newer   *score
+	older         *score
+	newer         *score
 	// Indicates if any new record was inserted since the last time the
 	// tree was recalculated
-	dirty bool
+	dirty   bool
 	running bool
 
 	recTree rectree.BoostrapRecTree
 
-	mutex sync.Mutex
+	mutex   sync.Mutex
 	cloning bool
 }
 
@@ -93,17 +93,17 @@ func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint
 	log.Info("Starting shard:", identifier, "With max number of elements:", maxClassif)
 
 	rc = &Recommender{
-		identifier:   identifier,
-		maxClassif:   maxClassif,
-		totalClassif: 0,
-		maxScore:     maxScore,
-		records:      make(map[uint64]*score),
-		status:       STATUS_SARTING,
-		s3Path:       s3Path,
-		s3Region:     aws.Regions[s3Region],
-		dirty:        true,
-		running:      true,
-		cloning:      false,
+		identifier:    identifier,
+		maxClassif:    maxClassif,
+		totalClassif:  0,
+		maxScore:      maxScore,
+		records:       make(map[uint64]*score),
+		status:        StatusStarting,
+		s3Path:        s3Path,
+		s3Region:      aws.Regions[s3Region],
+		dirty:         true,
+		running:       true,
+		cloning:       false,
 		cloningBuffer: make(map[uint64]map[uint64]uint8),
 	}
 
@@ -129,7 +129,7 @@ func (rc *Recommender) GetTotalElements() uint64 {
 }
 
 func (rc *Recommender) GetStoredElements() uint64 {
-	return rc.totalClassif;
+	return rc.totalClassif
 }
 
 func (rc *Recommender) GetStatus() string {
@@ -203,7 +203,7 @@ func (rc *Recommender) RecalculateTree() {
 	log.Info("Recalculating tree for:", rc.identifier)
 	if len(rc.records) < cMinRecordsToStart {
 		rc.dirty = false
-		rc.status = STATUS_NORECORDS
+		rc.status = StatusNoRecords
 		return
 	}
 
@@ -225,7 +225,7 @@ func (rc *Recommender) RecalculateTree() {
 
 	rc.recTree = rectree.ProcessNewTrees(records, cRecTreeMaxDeep, rc.maxScore, cRecTreeNumOfTrees)
 
-	rc.status = STATUS_ACTIVE
+	rc.status = StatusActive
 	log.Info("Tree recalculation finished:", rc.identifier)
 	rc.dirty = false
 }
@@ -272,12 +272,12 @@ func (rc *Recommender) LoadBackup() (success bool) {
 		return false
 	}
 
-	dataFromJson := [][]uint64{}
-	json.Unmarshal(rc.uncompress(jsonData), &dataFromJson)
+	dataFromJSON := [][]uint64{}
+	json.Unmarshal(rc.uncompress(jsonData), &dataFromJSON)
 
-	log.Info("Data loaded from S3:", rc.identifier, "len:", len(dataFromJson))
+	log.Info("Data loaded from S3:", rc.identifier, "len:", len(dataFromJSON))
 	recs := 0
-	for _, record := range dataFromJson {
+	for _, record := range dataFromJSON {
 		scores := make(map[uint64]uint8)
 		for i := 1; i < len(record); i += 2 {
 			scores[record[i]] = uint8(record[i+1])

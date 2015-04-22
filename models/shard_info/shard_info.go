@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"github.com/alonsovidales/pit/log"
 	"github.com/alonsovidales/pit/models/instances"
+	"github.com/alonsovidales/pit/recommender"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
-	"github.com/alonsovidales/pit/recommender"
 	"github.com/nu7hatch/gouuid"
 	"sync"
 	"time"
@@ -28,12 +28,12 @@ const (
 	cShardTTL          = 10
 )
 
-var CErrGroupUserNotFound = errors.New("User not found")
-var CErrGroupInUse = errors.New("Group ID in use")
-var CErrGroupNotFound = errors.New("Group not found")
-var CErrAuth = errors.New("Authentication problem")
-var CErrMaxShardsByGroup = errors.New("Max number of shards for this group reached")
-var CSharPrevOwnedGroup = errors.New("This instance yet owns a shard on this group")
+var ErrGroupUserNotFound = errors.New("User not found")
+var ErrGroupInUse = errors.New("Group ID in use")
+var ErrGroupNotFound = errors.New("Group not found")
+var ErrAuth = errors.New("Authentication problem")
+var ErrMaxShardsByGroup = errors.New("Max number of shards for this group reached")
+var ErrSharPrevOwnedGroup = errors.New("This instance yet owns a shard on this group")
 
 type GroupInfoInt interface {
 	AcquireShard() (adquired bool, err error)
@@ -83,12 +83,12 @@ type GroupInfo struct {
 type ModelInt interface {
 	GetAllGroups() map[string]map[string]*GroupInfo
 	GetAllGroupsByUserID(uid string) map[string]*GroupInfo
-	GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupInfo, err error)
-	GetGroupByID(groupId string) (gr *GroupInfo)
-	AddUpdateGroup(userId, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error)
+	GetGroupByUserKeyId(userID, secret, groupID string) (gr *GroupInfo, err error)
+	GetGroupByID(groupID string) (gr *GroupInfo)
+	AddUpdateGroup(userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error)
 	ReleaseAllAcquiredShards()
 	GetTotalNumberOfShards() (tot int)
-	RemoveGroup(groupId string) (err error)
+	RemoveGroup(groupID string) (err error)
 }
 
 type Model struct {
@@ -136,10 +136,10 @@ func GetModel(prefix, awsRegion string) (md *Model) {
 	return
 }
 
-func (md *Model) AddUpdateGroup(userId, groupId string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error) {
+func (md *Model) AddUpdateGroup(userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error) {
 	var grOk bool
-	userGroups, ugOk := md.groups[userId]
-	if gr, grOk = userGroups[groupId]; ugOk && grOk {
+	userGroups, ugOk := md.groups[userID]
+	if gr, grOk = userGroups[groupID]; ugOk && grOk {
 		gr.MaxScore = maxScore
 		gr.MaxElements = maxElements
 		gr.MaxReqSec = maxReqSec
@@ -154,8 +154,8 @@ func (md *Model) AddUpdateGroup(userId, groupId string, numShards int, maxElemen
 		gr.NumShards = numShards
 	} else {
 		gr = &GroupInfo{
-			UserID:  userId,
-			GroupID: groupId,
+			UserID:  userID,
+			GroupID: groupID,
 
 			NumShards: numShards,
 			MaxScore:  maxScore,
@@ -171,10 +171,10 @@ func (md *Model) AddUpdateGroup(userId, groupId string, numShards int, maxElemen
 
 		gr.RegenerateKey()
 
-		if userGroups, ugOk := md.groups[userId]; ugOk {
-			userGroups[groupId] = gr
+		if userGroups, ugOk := md.groups[userID]; ugOk {
+			userGroups[groupID] = gr
 		} else {
-			md.groups[userId] = map[string]*GroupInfo{
+			md.groups[userID] = map[string]*GroupInfo{
 				gr.GroupID: gr,
 			}
 		}
@@ -210,23 +210,21 @@ func (md *Model) GetAllGroups() map[string]map[string]*GroupInfo {
 	return md.groups
 }
 
-func (md *Model) GetGroupByUserKeyId(userId, secret, groupId string) (gr *GroupInfo, err error) {
+func (md *Model) GetGroupByUserKeyID(userID, secret, groupID string) (gr *GroupInfo, err error) {
 	md.groupsMutex.Lock()
 	defer md.groupsMutex.Unlock()
-	if userGroups, ugOk := md.groups[userId]; ugOk {
-		if group, grOk := userGroups[groupId]; grOk {
+	if userGroups, ugOk := md.groups[userID]; ugOk {
+		if group, grOk := userGroups[groupID]; grOk {
 			if group.Secret == secret {
 				log.Debug("Group found:", group)
 				return group, nil
-			} else {
-				return nil, CErrAuth
 			}
-		} else {
-			return nil, CErrGroupNotFound
+			return nil, ErrAuth
 		}
+		return nil, ErrGroupNotFound
 	}
 
-	return nil, CErrGroupUserNotFound
+	return nil, ErrGroupUserNotFound
 }
 
 func (gr *GroupInfo) RemoveAllContent(rec *recommender.Recommender) bool {
@@ -274,12 +272,12 @@ func (gr *GroupInfo) IsThisInstanceOwner() bool {
 func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 	if len(gr.ShardsByAddr) == len(gr.Shards) {
 		log.Debug("Max number of shards allowed, can't adquire more")
-		return false, CErrMaxShardsByGroup
+		return false, ErrMaxShardsByGroup
 	}
 
 	if _, in := gr.ShardsByAddr[instances.GetHostName()]; in {
 		log.Debug("This instance owns a shard on this group:", gr.GroupID)
-		return false, CSharPrevOwnedGroup
+		return false, ErrSharPrevOwnedGroup
 	}
 
 	// Get a free shard
@@ -414,30 +412,30 @@ func (md *Model) updateInfo() {
 	}
 }
 
-func (gr *GroupInfo) addShard(shardId int) (shard *Shard, err error) {
+func (gr *GroupInfo) addShard(shardID int) (shard *Shard, err error) {
 	shard = &Shard{
 		GroupID: gr.GroupID,
-		ShardID: shardId,
+		ShardID: shardID,
 		md:      gr.md,
 		expire:  false,
 	}
 
 	shard.persist()
-	gr.Shards[shardId] = shard
+	gr.Shards[shardID] = shard
 
 	return
 }
 
-func (gr *GroupInfo) delShard(shardId int) {
+func (gr *GroupInfo) delShard(shardID int) {
 	shard := &Shard{
 		GroupID: gr.GroupID,
-		ShardID: shardId,
+		ShardID: shardID,
 		md:      gr.md,
 		expire:  true,
 	}
 
 	shard.persist()
-	delete(gr.Shards, shardId)
+	delete(gr.Shards, shardID)
 }
 
 func (sh *Shard) getDynamoDbKey() string {
@@ -467,11 +465,11 @@ func (sh *Shard) consistentUpdate() (success bool) {
 
 func (sh *Shard) persist() (err error) {
 	// Persis the shard row
-	if shJson, err := json.Marshal(sh); err == nil {
+	if shJSON, err := json.Marshal(sh); err == nil {
 		keyStr := sh.getDynamoDbKey()
 		attribs := []dynamodb.Attribute{
 			*dynamodb.NewStringAttribute(cShardsPrimKey, keyStr),
-			*dynamodb.NewStringAttribute("info", string(shJson)),
+			*dynamodb.NewStringAttribute("info", string(shJSON)),
 		}
 
 		if sh.expire {
@@ -505,11 +503,11 @@ func (md *Model) GetTotalNumberOfShards() (tot int) {
 
 func (gr *GroupInfo) persist() (err error) {
 	// Persis the groups row
-	if grJson, err := json.Marshal(gr); err == nil {
-		log.Debug("Persisting group:", gr, string(grJson))
+	if grJSON, err := json.Marshal(gr); err == nil {
+		log.Debug("Persisting group:", gr, string(grJSON))
 		attribs := []dynamodb.Attribute{
 			*dynamodb.NewStringAttribute(cGroupsPrimKey, gr.GroupID),
-			*dynamodb.NewStringAttribute("info", string(grJson)),
+			*dynamodb.NewStringAttribute("info", string(grJSON)),
 		}
 
 		if _, err := gr.md.groupsTable.PutItem(gr.GroupID, cGroupsPrimKey, attribs); err != nil {
@@ -526,13 +524,13 @@ func (gr *GroupInfo) persist() (err error) {
 	return
 }
 
-func (im *Model) RemoveGroup(groupId string) (err error) {
+func (md *Model) RemoveGroup(groupID string) (err error) {
 	attKey := &dynamodb.Key{
-		HashKey:  groupId,
+		HashKey:  groupID,
 		RangeKey: "",
 	}
 
-	_, err = im.groupsTable.DeleteItem(attKey)
+	_, err = md.groupsTable.DeleteItem(attKey)
 
 	return
 }

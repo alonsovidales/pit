@@ -29,16 +29,16 @@ const (
 
 type Manager struct {
 	usersModel     users.ModelInt
-	baseUrl        string
+	baseURL        string
 	secret         string
 	mailFromAddr   string
 	mailServerAddr string
 	mailServerPort int64
 }
 
-func Init(baseUrl, mailFromAddr, mailServerAddr string, mailServerPort int64, usersModel users.ModelInt) (mg *Manager) {
+func Init(baseURL, mailFromAddr, mailServerAddr string, mailServerPort int64, usersModel users.ModelInt) (mg *Manager) {
 	mg = &Manager{
-		baseUrl:        baseUrl,
+		baseURL:        baseURL,
 		secret:         os.Getenv("PIT_SECRET"),
 		mailServerAddr: mailServerAddr,
 		mailFromAddr:   mailFromAddr,
@@ -78,9 +78,9 @@ func (mg *Manager) Register(w http.ResponseWriter, r *http.Request) {
 	v.Set("t", fmt.Sprintf("%d", ttl))
 	v.Set("s", mg.getSignature(uid, keyHash, ttl))
 
-	verifUrl := fmt.Sprintf(
+	verifURL := fmt.Sprintf(
 		"%s/%s?%s",
-		mg.baseUrl,
+		mg.baseURL,
 		CVerifyPath,
 		v.Encode())
 
@@ -88,7 +88,7 @@ func (mg *Manager) Register(w http.ResponseWriter, r *http.Request) {
 		uid,
 		fmt.Sprintf(
 			"Hello from Pitia!,\n\tPlease, click on the next link in order to verify you account: %s\n\nBest!,",
-			verifUrl),
+			verifURL),
 		"Account verification from Pitia")
 
 	if !emailSent {
@@ -145,7 +145,7 @@ func (mg *Manager) Logs(w http.ResponseWriter, r *http.Request) {
 
 	if userInfo := mg.usersModel.GetUserInfo(uid, key); userInfo != nil {
 		logs := userInfo.GetAllActivity()
-		logsJson, err := json.Marshal(logs)
+		logsJSON, err := json.Marshal(logs)
 		if err != nil {
 			w.WriteHeader(500)
 			w.Write([]byte("User logs can't be converted to JSON"))
@@ -153,7 +153,7 @@ func (mg *Manager) Logs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.WriteHeader(200)
-		w.Write(logsJson)
+		w.Write(logsJSON)
 	} else {
 		w.WriteHeader(401)
 		w.Write([]byte(fmt.Sprint("Unauthorized")))
@@ -224,15 +224,15 @@ func (mg *Manager) RecoverPass(w http.ResponseWriter, r *http.Request) {
 		v.Set("t", fmt.Sprintf("%d", ttl))
 		v.Set("s", mg.getSignature(uid, "recovery", ttl))
 
-		verifUrl := fmt.Sprintf(
+		verifURL := fmt.Sprintf(
 			"%s/%s?%s",
-			mg.baseUrl,
+			mg.baseURL,
 			CResetPass,
 			v.Encode())
 
 		body := fmt.Sprintf(
 			"Hi!,\n\tYou have requested password recovery, please click the following link to reset your password: %s\n\nBest,",
-			verifUrl)
+			verifURL)
 
 		if mg.SendEmail(uid, body, "Pitia: Password Recovery") {
 			userInfo.AddActivityLog(users.CActivityAccountType, "Password recovery sent", r.RemoteAddr)
@@ -244,12 +244,12 @@ func (mg *Manager) RecoverPass(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		w.Write([]byte("KO"))
 		return
-	} else {
-		// Don't return any clue about if the user is or is not registered
-		w.WriteHeader(200)
-		w.Write([]byte("OK"))
-		return
 	}
+
+	// Don't return any clue about if the user is or is not registered
+	w.WriteHeader(200)
+	w.Write([]byte("OK"))
+	return
 }
 
 func (mg *Manager) getSignature(uid, keyHash string, ttl int64) string {
