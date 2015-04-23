@@ -51,7 +51,7 @@
 				<a href="cases-of-use">Cases Of Use</a>
 				</li>
 				<li class="page-scroll">
-				<a href="pricing">Pricing</a>
+					<!--<a href="pricing">Pricing</a>-->
 				</li>
 				<li class="active page-scroll">
 				<a href="api">API Specifications</a>
@@ -123,7 +123,7 @@
 			<br />
 			<p>
 			<h4 id="get-recs"></h4>
-			Pitia is based on a <strong class="yellow-text">REST API</strong> in order to make possible the integration of the Recommender System on almost any application with a internet connection.<br />
+			Pitia is based on a <strong class="yellow-text">REST API</strong> in order to make possible the integration of the Recommender System on almost any application with an internet connection.<br />
 			<br />
 			<h4>Adding Classifications & Getting Back Recommendations</h4>
 			In order to send the classifications for a user and get back the recommendations your app has to perform a <strong class="yellow-text">HTTP POST</strong> request to the next URL:
@@ -144,11 +144,11 @@
 				<strong class="yellow-text">key :</strong> Group key, you can find this key in the "Management panel" inside the group box
 				</li>
 				<li>
-				<strong class="yellow-text">insert (optional) :</strong> Specify this parameter using a "1" as value in case of you just want add the classifications to the system in order to populate it, you will not get classifications back, this kind of query will count as an "insert request"
+				<strong class="yellow-text">insert (optional) :</strong> Specify this parameter using a "1" as value in case of you just want to add the classifications to the system in order to populate it, you will not get classifications back, this kind of query will count as an "insert request"
 				</li>
 				<li>
-				<strong class="yellow-text">id :</strong> A numeric (uin64) unique identifier for the provided classifications on this request, this ID will be used to replace previous classifications in case of the same source has sent them before. Use a unique identifier is important in order to avoid biases caused by multiple similar classifications stored on the system from by the same source.<br />
-				In case of your application uses alphanumeric identifiers for the users, you can use algorithms like <a href="http://en.wikipedia.org/wiki/Cyclic_redundancy_check" target="_blank" class="yellow-text">CRC32</a> to obtain a numeric identifier from a string, you don't need to worry about collisions, in the case of a collision between two identifiers the old classifications will be overwritten
+				<strong class="yellow-text">id :</strong> A numeric (uin64) unique identifier for the provided classifications on this request, this ID will be used to replace previous classifications in case of the same source has sent them before. Use a unique identifier is important in order to avoid biases caused by multiple similar classifications stored on the system from the same source.<br />
+				If your application uses alphanumeric identifiers for the users, you can use algorithms like <a href="http://en.wikipedia.org/wiki/Cyclic_redundancy_check" target="_blank" class="yellow-text">CRC32</a> to obtain a numeric identifier from a string, you don't need to worry about collisions, in the case of a collision between two identifiers the old classifications will be overwritten
 				</li>
 				<li>
 				<strong class="yellow-text">max_recs :</strong> The max number of classifications to be returned by the system on this query. The max allowed value for this parameter is 100
@@ -246,19 +246,19 @@ $> curl 'http://api.pitia.info/rec' -X POST\
 				<strong class="yellow-text">* recs :</strong> Array of unique IDs of the elements recommended for this request based on the sent classifications
 				</li>
 			</ul>
-			* If the shard doessn't contains enought parameters to provide recomendations (less than 100 classifications), the array "recs" can be empty and the "success" field will contain a false as value
+			* If the shard doesn't contain enought parameters to provide recomendations (less than 100 classifications), the array "recs" can be empty and the "success" field will contain a false as value
 
 			<h4 id="error-codes"></h4>
 			<br />
 			<br />
 			<h4 id="error-codes">Error Codes</h4>
-			In case of an error the server will respond according to the kind of it with one of the next codes:
+			If there were an error, the server will respond according to the kind of it with one of the next codes:
 			<ul>
 				<li>
-				<strong class="yellow-text">401 :</strong> Authentication error, check the uid, key and group parameters
+				<strong class="yellow-text">401 :</strong> Authentication error, check the "uid", key and group parameters
 				</li>
 				<li>
-				<strong class="yellow-text">429 :</strong> Too Many requests, the numer of requests per second on the shard is bigger than the limit for this group
+				<strong class="yellow-text">429 :</strong> Too Many requests, the number of requests per second on the shard is bigger than the limit for this group
 				</li>
 				<li>
 				<strong class="yellow-text">400 :</strong> Bad Request, One of the sent parameters on the request is not valid, check the body response

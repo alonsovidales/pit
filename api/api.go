@@ -69,6 +69,7 @@ func (api *API) contact(w http.ResponseWriter, r *http.Request) {
 func (api *API) registerAPIs(ssl bool) {
 	if !ssl {
 		api.muxHTTPServer.HandleFunc(shardsmanager.CRecPath, api.shardsManager.ScoresAPIHandler)
+		api.muxHTTPServer.HandleFunc(shardsmanager.CScoresPath, api.shardsManager.ScoresAPIHandler)
 	}
 
 	api.muxHTTPServer.HandleFunc(shardsmanager.CGroupInfoPath, api.shardsManager.GroupInfoAPIHandler)

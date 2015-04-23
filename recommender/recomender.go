@@ -46,6 +46,7 @@ type Int interface {
 	// the posible statuses can be: ACTIVE, STARTING, NO_RECORDS
 	GetStatus() string
 	GetStoredElements() uint64
+	GetAvgScores([]uint64) map[uint64]float64
 
 	Stop()
 
@@ -83,7 +84,8 @@ type Recommender struct {
 	dirty   bool
 	running bool
 
-	recTree rectree.BoostrapRecTree
+	recTree       rectree.BoostrapRecTree
+	avgScoreElems map[uint64]float64
 
 	mutex   sync.Mutex
 	cloning bool
@@ -134,6 +136,15 @@ func (rc *Recommender) GetStoredElements() uint64 {
 
 func (rc *Recommender) GetStatus() string {
 	return rc.status
+}
+
+func (rc *Recommender) GetAvgScores(itemIDs []uint64) (scores map[uint64]float64) {
+	scores = make(map[uint64]float64)
+	for _, item := range itemIDs {
+		scores[item] = rc.avgScoreElems[item]
+	}
+
+	return
 }
 
 func (rc *Recommender) CalcScores(recID uint64, scores map[uint64]uint8, maxToReturn int) (result []uint64) {
@@ -227,7 +238,7 @@ func (rc *Recommender) RecalculateTree() {
 	}
 	rc.cloningBuffer = make(map[uint64]map[uint64]uint8)
 
-	rc.recTree = rectree.ProcessNewTrees(records, cRecTreeMaxDeep, rc.maxScore, cRecTreeNumOfTrees)
+	rc.recTree, rc.avgScoreElems = rectree.ProcessNewTrees(records, cRecTreeMaxDeep, rc.maxScore, cRecTreeNumOfTrees)
 
 	rc.status = StatusActive
 	log.Info("Tree recalculation finished:", rc.identifier)

@@ -85,13 +85,11 @@ func (a byClassif) Less(i, j int) bool { return a[i].score > a[j].score }
 // ProcessNewTrees Creates a new set of numberOfTrees decission trees with a
 // max deep of maxDeep. Specify on maxScore the max possible score for the
 // elements
-func ProcessNewTrees(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberOfTrees int) (tr *Tree) {
+func ProcessNewTrees(records []map[uint64]uint8, maxDeep int, maxScore uint8, numberOfTrees int) (tr *Tree, avgScores map[uint64]float64) {
+	avgScores = make(map[uint64]float64)
 	elementsTotals := []elemTotals{}
 	elemsPos := make(map[uint64]int)
 
-	// Get the most commont element in order to be used as root of the tree
-	// Calculates the sum and the square sum of all the elements on the
-	// records
 	i := 0
 	for _, record := range records {
 		for k, v := range record {
@@ -114,6 +112,10 @@ func ProcessNewTrees(records []map[uint64]uint8, maxDeep int, maxScore uint8, nu
 				i++
 			}
 		}
+	}
+
+	for _, v := range elementsTotals {
+		avgScores[v.elemID] = float64(v.sum) / float64(v.n)
 	}
 
 	tr = &Tree{

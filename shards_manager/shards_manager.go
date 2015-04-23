@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	CScoresPath    = "/scores"
 	CRecPath       = "/rec"
 	CGroupInfoPath = "/info"
 
@@ -88,7 +89,7 @@ func (mg *Manager) IsFinished() bool {
 
 func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	rec := recommender.NewShard(mg.s3BackupsPath, group.GroupID, group.MaxElements, group.MaxScore, mg.awsRegion)
-	mg.acquiredShards[group.GroupID] = rec
+	rec.LoadBackup()
 	mg.reqSecStats[group.GroupID] = &statsReqSec{
 		BySecStats: []uint64{},
 		ByMinStats: []uint64{},
@@ -96,8 +97,7 @@ func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 		inserts:    0,
 	}
 	go mg.reqSecStats[group.GroupID].monitorStats()
-
-	rec.LoadBackup()
+	mg.acquiredShards[group.GroupID] = rec
 
 	go mg.keepUpdateGroup(group.GroupID)
 	log.Info("Finished acquisition of shard on group:", group.GroupID)
@@ -456,10 +456,6 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 	userID := r.FormValue("uid")
 	key := r.FormValue("key")
 	groupID := r.FormValue("group")
-	id := r.FormValue("id")
-	elemScores := r.FormValue("scores")
-	maxRecs := r.FormValue("max_recs")
-	justAdd := r.FormValue("insert") != ""
 
 	group, err := mg.shardsModel.GetGroupByUserKeyID(userID, key, groupID)
 	if err != nil {
@@ -469,6 +465,12 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	id := r.FormValue("id")
+	elemScores := r.FormValue("scores")
+	items := r.FormValue("items")
+	maxRecs := r.FormValue("max_recs")
+	justAdd := r.FormValue("insert") != ""
 
 	rec, local := mg.acquiredShards[group.GroupID]
 	if local && (rec.GetStatus() == recommender.StatusActive || rec.GetStatus() == recommender.StatusNoRecords) {
@@ -487,11 +489,40 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if r.URL.Path == CScoresPath {
+			// This is a query for average scores for the elements
+			itemsSlice := []uint64{}
+			if err = json.Unmarshal([]byte(items), &itemsSlice); err != nil {
+				w.WriteHeader(400)
+				w.Write([]byte(fmt.Sprintf("Error: %s", err)))
+			}
+
+			scores := rec.GetAvgScores(itemsSlice)
+			scoresToJson := make(map[string]float64)
+			for k, v := range scores {
+				scoresToJson[fmt.Sprintf("%d", k)] = v
+			}
+
+			result, err := json.Marshal(scoresToJson)
+			log.Info("Scores2:", scoresToJson, string(result), err)
+
+			// User not authorised to access to this shard
+			w.WriteHeader(200)
+			w.Write([]byte(fmt.Sprintf(`{
+				"success": true,
+				"reqs_sec": %d,
+				"stored_elements": %d,
+				"scores": %s
+			}`, mg.reqSecStats[group.GroupID].inserts, rec.GetStoredElements(), string(result))))
+
+			return
+		}
+
+		// This is a query for recommendations
 		jsonScores := make(map[string]uint8)
 		scores := make(map[uint64]uint8)
-		err = json.Unmarshal([]byte(elemScores), &jsonScores)
 
-		if err != nil {
+		if err = json.Unmarshal([]byte(elemScores), &jsonScores); err != nil {
 			w.WriteHeader(400)
 			w.Write([]byte(fmt.Sprintf("Error: %s", err)))
 
@@ -515,6 +546,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 
 			return
 		}
+
 		if justAdd {
 			rec.AddRecord(uint64(idInt), scores)
 
@@ -522,7 +554,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte(fmt.Sprintf(`{
 				"success": true,
-				"reqs_sec": %d
+				"reqs_sec": %d,
 				"stored_elements": %d
 			}`, mg.reqSecStats[group.GroupID].inserts, rec.GetStoredElements())))
 
@@ -594,6 +626,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 		"group":         {groupID},
 		"id":            {id},
 		"scores":        {elemScores},
+		"items":         {items},
 		"hosts_visited": {strings.Join(hostsVisited, ",")},
 	}
 	if len(maxRecs) > 0 {
@@ -604,7 +637,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := http.PostForm(
-		fmt.Sprintf("http://%s:%d%s", shard.Addr, mg.port, CRecPath),
+		fmt.Sprintf("http://%s:%d%s", shard.Addr, mg.port, r.URL.Path),
 		vals)
 
 	if err != nil {
