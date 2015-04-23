@@ -503,9 +503,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 				scoresToJson[fmt.Sprintf("%d", k)] = v
 			}
 
-			result, err := json.Marshal(scoresToJson)
-			log.Info("Scores2:", scoresToJson, string(result), err)
-
+			result, _ := json.Marshal(scoresToJson)
 			// User not authorised to access to this shard
 			w.WriteHeader(200)
 			w.Write([]byte(fmt.Sprintf(`{

@@ -101,65 +101,76 @@
 <div class="api-page-body" role="main" id="content-container">
 	<div class="row">
 		<div class="col-md-2 text-left api">
-			<nav class="col-xs-2 bs-docs-sidebar">
+			<nav class="col-xs-2 bs-docs-sidebar api-sidebar">
 				<ul id="sidebar" class="nav nav-stacked fixed">
 					<li>
-					<a href="#get-recs">Request Recommendations</a>
+						<a href="#get-recs">Recommendations</a>
+						<ul class="nav nav-stacked">
+							<li>
+								<a href="#req-examp">Request Example</a>
+							</li>
+							<li>
+								<a href="#server-resp">Server Response</a>
+							</li>
+						</ul>
 					</li>
 					<li>
-					<a href="#req-examp">Request Example</a>
+						<a href="#get-scores">Item Scores</a>
+						<ul class="nav nav-stacked">
+							<li>
+								<a href="#req-scores">Request Example</a>
+							</li>
+							<li>
+								<a href="#server-scores-resp">Server Response</a>
+							</li>
+						</ul>
 					</li>
 					<li>
-					<a href="#server-resp">Server Response</a>
-					</li>
-					<li>
-					<a href="#error-codes">Error Codes</a>
+						<a href="#error-codes">Error Codes</a>
 					</li>
 				</ul>
 			</nav>
 		</div>
 		<div class="col-md-10 text-left api">
-			<h2>API / Tech Specifications</h2>
-			<br />
+			<h2 class="api-page-header">API / Tech Specifications</h2>
 			<p>
-			<h4 id="get-recs"></h4>
-			Pitia is based on a <strong class="yellow-text">REST API</strong> in order to make possible the integration of the Recommender System on almost any application with an internet connection.<br />
-			<br />
-			<h4>Adding Classifications & Getting Back Recommendations</h4>
-			In order to send the classifications for a user and get back the recommendations your app has to perform a <strong class="yellow-text">HTTP POST</strong> request to the next URL:
-			<br />
-			<br />
-			<code class="api-code">http://api.pitia.info/rec</code>
-			<br />
-			<br />
-			Sending the next <strong class="yellow-text">parameters</strong>:
-			<ul>
-				<li>
-				<strong class="yellow-text">uid :</strong> User ID, the e-mail associated with the account
-				</li>
-				<li>
-				<strong class="yellow-text">group :</strong> Group ID, the group identifier, is the one at the top of the corresponding group box in the "Management panel"
-				</li>
-				<li>
-				<strong class="yellow-text">key :</strong> Group key, you can find this key in the "Management panel" inside the group box
-				</li>
-				<li>
-				<strong class="yellow-text">insert (optional) :</strong> Specify this parameter using a "1" as value in case of you just want to add the classifications to the system in order to populate it, you will not get classifications back, this kind of query will count as an "insert request"
-				</li>
-				<li>
-				<strong class="yellow-text">id :</strong> A numeric (uin64) unique identifier for the provided classifications on this request, this ID will be used to replace previous classifications in case of the same source has sent them before. Use a unique identifier is important in order to avoid biases caused by multiple similar classifications stored on the system from the same source.<br />
-				If your application uses alphanumeric identifiers for the users, you can use algorithms like <a href="http://en.wikipedia.org/wiki/Cyclic_redundancy_check" target="_blank" class="yellow-text">CRC32</a> to obtain a numeric identifier from a string, you don't need to worry about collisions, in the case of a collision between two identifiers the old classifications will be overwritten
-				</li>
-				<li>
-				<strong class="yellow-text">max_recs :</strong> The max number of classifications to be returned by the system on this query. The max allowed value for this parameter is 100
-				</li>
-				<li>
-				<strong class="yellow-text">scores :</strong> Dictionary serialised as JSON that has to contain as key an uint64 (encoded as string) to be used as element unique identifier, and as value a uint8 in ordet to be used as score. The value of the score can go from 0 to "Max Score", the "Max Score" is a field that has to be specified during the group creation and can be find on your "Management panel" for each group
+				<h3 id="get-recs"></h3>
+				Pitia is based on a <strong class="yellow-text">REST API</strong> in order to make possible the integration of the Recommender System on almost any application with an internet connection.<br />
 				<br />
-				<strong>Example:</strong>
+				<h3 class="api-page-header">Adding Classifications & Getting Back Recommendations</h3>
+				In order to send the classifications for a user and get back the recommendations your app has to perform a <strong class="yellow-text">HTTP POST</strong> request to the next URL:
 				<br />
-				<pre class="json-examples-pre">
-<code class="json-examples javascript">
+				<br />
+				<code class="api-code">http://api.pitia.info/rec</code>
+				<br />
+				<br />
+				Sending the next <strong class="yellow-text">parameters</strong>:
+				<ul>
+					<li>
+					<strong class="yellow-text">uid :</strong> User ID, the e-mail associated with the account
+					</li>
+					<li>
+					<strong class="yellow-text">group :</strong> Group ID, the group identifier, is the one at the top of the corresponding group box in the "Management panel"
+					</li>
+					<li>
+					<strong class="yellow-text">key :</strong> Group key, you can find this key in the "Management panel" inside the group box
+					</li>
+					<li>
+					<strong class="yellow-text">insert (optional) :</strong> Specify this parameter using a "1" as value in case of you just want to add the classifications to the system in order to populate it, you will not get classifications back, this kind of query will count as an "insert request"
+					</li>
+					<li>
+					<strong class="yellow-text">id :</strong> A numeric (uin64) unique identifier for the provided classifications on this request, this ID will be used to replace previous classifications in case of the same source has sent them before. Use a unique identifier is important in order to avoid biases caused by multiple similar classifications stored on the system from the same source.<br />
+					If your application uses alphanumeric identifiers for the users, you can use algorithms like <a href="http://en.wikipedia.org/wiki/Cyclic_redundancy_check" target="_blank" class="yellow-text">CRC32</a> to obtain a numeric identifier from a string, you don't need to worry about collisions, in the case of a collision between two identifiers the old classifications will be overwritten
+					</li>
+					<li>
+					<strong class="yellow-text">max_recs :</strong> The max number of classifications to be returned by the system on this query. The max allowed value for this parameter is 100
+					</li>
+					<li>
+					<strong class="yellow-text">scores :</strong> Dictionary serialised as JSON that has to contain as key an uint64 (encoded as string) to be used as element unique identifier, and as value a uint8 in ordet to be used as score. The value of the score can go from 0 to "Max Score", the "Max Score" is a field that has to be specified during the group creation and can be find on your "Management panel" for each group
+					<br />
+					<strong>Example:</strong>
+					<br />
+					<pre class="json-examples-pre"><code class="json-examples javascript">
 {
     "16384": 5,
     "12672": 2,
@@ -167,16 +178,14 @@
     "15887": 1,
     "13081": 5,
     "12317": 5
-}
-</code>
-				</pre>
-				</li>
-			</ul>
+}</code></pre>
+					</li>
+				</ul>
 			</p>
-			<h4 id="req-examp"></h4>
+			<h3 id="req-examp"></h3>
 			<br />
 			<br />
-			<h4>Request Example</h4>
+			<h3 class="api-page-header">Request Example</h3>
 			Example of a request for classifications using CURL:
 			<pre class="json-examples-pre" style="width: 600px; height: 240px;">
 <code class="json-examples bash">
@@ -216,10 +225,10 @@ $> curl 'http://api.pitia.info/rec' -X POST\
 			</pre>
 
 
-			<h4 id="server-resp"></h4>
+			<h3 id="server-resp"></h3>
 			<br />
 			<br />
-			<h4>Server Response</h4>
+			<h3 class="api-page-header">Server Response</h3>
 			The server will perform the security checks and if all is in order it will return a JSON like the next back:
 			<pre class="json-examples-pre" style="width: 600px; height: 140px;">
 <code class="json-examples javascript">
@@ -229,8 +238,7 @@ $> curl 'http://api.pitia.info/rec' -X POST\
     "reqs_sec": 173,
     "recs": [15205,17157,2782,14691,11064,12317,10042,2862,10947,571]
 }
-</code>
-			</pre>
+</code></pre>
 			<strong class="yellow-text">Returned parameters:</strong>
 			<ul>
 				<li>
@@ -248,26 +256,135 @@ $> curl 'http://api.pitia.info/rec' -X POST\
 			</ul>
 			* If the shard doesn't contain enought parameters to provide recomendations (less than 100 classifications), the array "recs" can be empty and the "success" field will contain a false as value
 
-			<h4 id="error-codes"></h4>
+
+			<h3 id="get-scores"></h3>
 			<br />
 			<br />
-			<h4 id="error-codes">Error Codes</h4>
+			<h3 class="api-page-header">Item Scores</h3>
+			Pitia calculate the average score for each item. This information can be retrieved performing an <strong class="yellow-text">HTTP</strong> POST or GET request to the next URL:
+				<br />
+				<br />
+				<code class="api-code">http://api.pitia.info/scores</code>
+				<br />
+				<br />
+				Sending the next <strong class="yellow-text">parameters</strong>:
+				<ul>
+					<li>
+					<strong class="yellow-text">uid :</strong> User ID, the e-mail associated with the account
+					</li>
+					<li>
+					<strong class="yellow-text">group :</strong> Group ID, the group identifier, is the one at the top of the corresponding group box in the "Management panel"
+					</li>
+					<li>
+					<strong class="yellow-text">key :</strong> Group key, you can find this key in the "Management panel" inside the group box
+					</li>
+					<li>
+					<strong class="yellow-text">items :</strong> Array of element IDs (uint64) serialised as JSON
+					<br />
+					<strong>Example:</strong>
+					<br />
+					<pre class="json-examples-scores-data"><code class="json-examples javascript">
+[
+	8280,
+	14804,
+	13050,
+	8958,
+	13056,
+	15105,
+	15107,
+	17157
+]</code></pre>
+					</li>
+				</ul>
+
+			<h3 id="req-scores"></h3>
+			<br />
+			<br />
+			<h3 class="api-page-header">Request Example</h3>
+			Example of a request for scores using CURL:
+			<pre class="json-examples-pre" style="width: 600px; height: 240px;">
+<code class="json-examples bash">
+$> curl 'http://api.pitia.info/scores' -X POST -v\
+>     -d 'uid=user_id'\
+>     -d 'key=group_key'\
+>     -d 'group=group_name'\
+>     -d 'items=[8280, 14804, 13050, 8958, 13056, 15105, 15107, 17157, 15110, 15114]'
+* Hostname was NOT found in DNS cache
+*   Trying 91.121.181.125...
+* Connected to api.pitia.info (91.121.181.125) port 80 (#0)
+> POST /scores HTTP/1.1
+> User-Agent: curl/7.37.1
+> Host: api.pitia.info
+> Accept: */*
+> Content-Length: 183
+> Content-Type: application/x-www-form-urlencoded
+>
+* upload completely sent off: 183 out of 183 bytes
+< HTTP/1.1 200 OK
+< Access-Control-Allow-Origin: *
+< Date: Thu, 23 Apr 2015 22:19:02 GMT
+< Content-Length: 357
+< Content-Type: text/plain; charset=utf-8
+<
+{
+	"success": true,
+	"reqs_sec": 10,
+	"stored_elements": 3997490,
+	"scores": {"13050":3.362357669122572,"13056":3.2597173144876326,"14804":3.620833333333333,"15105":3.6192536506219577,"15107":3.886912128712871,"15110":3.4806534823731727,"15114":3.7747440273037545,"17157":4.272283986736883,"8280":3.9027777777777777,"8958":4.015748031496063}
+}
+* Connection #0 to host api.pitia.info left intact
+</code>
+			</pre>
+
+			<h3 id="server-scores-resp"></h3>
+			<br />
+			<br />
+			<h3 class="api-page-header">Server Response</h3>
+			The server will perform the security checks and if all is in order it will return a JSON like the next back:
+			<pre class="json-examples-pre" style="width: 80%; height: 175px;">
+<code class="json-examples javascript">
+{
+	"success": true,
+	"reqs_sec": 0,
+	"stored_elements": 3997490,
+	"scores": {"13050":3.362357669122572,"13056":3.2597173144876326,"14804":3.620833333333333,"15105":3.6192536506219577,"15107":3.886912128712871,"15110":3.4806534823731727,"15114":3.7747440273037545,"17157":4.272283986736883,"8280":3.9027777777777777,"8958":4.015748031496063}
+}
+</code></pre>
+			<strong class="yellow-text">Returned parameters:</strong>
+			<ul>
+				<li>
+				<strong class="yellow-text">success :</strong> Boolean value that indicates if the request had success
+				</li>
+				<li>
+				<strong class="yellow-text">stored_elements :</strong> Current number of stored elements on the shard
+				</li>
+				<li>
+				<strong class="yellow-text">reqs_sec :</strong> Current ratio of request on the shard that attended the request
+				</li>
+				<li>
+				<strong class="yellow-text">* scores :</strong> Dictionary where each key is the unique element ID and the value the average score for this element across the elements stored in memory
+				</li>
+			</ul>
+			<h3 id="error-codes"></h3>
+			<br />
+			<br />
+			<h3 class="api-page-header">Error Codes</h3>
 			If there were an error, the server will respond according to the kind of it with one of the next codes:
 			<ul>
 				<li>
-				<strong class="yellow-text">401 :</strong> Authentication error, check the "uid", key and group parameters
+					<strong class="yellow-text">401 :</strong> Authentication error, check the "uid", key and group parameters
 				</li>
 				<li>
-				<strong class="yellow-text">429 :</strong> Too Many requests, the number of requests per second on the shard is bigger than the limit for this group
+					<strong class="yellow-text">429 :</strong> Too Many requests, the number of requests per second on the shard is bigger than the limit for this group
 				</li>
 				<li>
-				<strong class="yellow-text">400 :</strong> Bad Request, One of the sent parameters on the request is not valid, check the body response
+					<strong class="yellow-text">400 :</strong> Bad Request, One of the sent parameters on the request is not valid, check the body response
 				</li>
 				<li>
-				<strong class="yellow-text">500 :</strong> Internal server error
+					<strong class="yellow-text">500 :</strong> Internal server error
 				</li>
 				<li>
-				<strong class="yellow-text">503 :</strong> All the shards are provisioning, there is no shard ready to attend this request
+					<strong class="yellow-text">503 :</strong> All the shards are provisioning, there is no shard ready to attend this request
 				</li>
 			</ul>
 		</div>

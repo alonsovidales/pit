@@ -240,7 +240,7 @@ ul.main-instance-pannel-info li {
 .api {
 	background-color: #262c4a;
 	font-size: 1.2em;
-	height: 2120px;
+	height: 3920px;
 	color: #ffffff;
 	padding-top: 20px;
 	padding-right: 50px;
@@ -320,4 +320,16 @@ ul.group-desc {
 
 .special-text-small {
 	font-size: 1em;
+}
+
+.json-examples-scores-data {
+	width: 150px;
+	height: 220px;
+	background-color: white;
+	padding: 0;
+	margin-left: 60px;
+}
+
+.api-page-header {
+	color: #ff2222;
 }
