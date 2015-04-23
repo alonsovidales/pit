@@ -156,7 +156,7 @@ var GroupsController = (function() {
 
 					for (i = 0; i < initialInfo.length; i++) {
 						data.push({
-							x: time - (initialInfo.length - (i * timeMult)) * 1000,
+							x: time - (initialInfo.length - i) * (timeMult * 1000),
 							y: initialInfo[i],
 						});
 					}

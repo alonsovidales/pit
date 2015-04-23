@@ -125,7 +125,7 @@ func (rc *Recommender) SetMaxScore(maxScore uint8) {
 }
 
 func (rc *Recommender) GetTotalElements() uint64 {
-	return rc.totalClassif
+	return rc.maxClassif
 }
 
 func (rc *Recommender) GetStoredElements() uint64 {
@@ -162,9 +162,15 @@ func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
 	if sc, existingRecord = rc.records[recID]; existingRecord {
 		if sc.prev != nil {
 			sc.prev.next = sc.next
+		} else {
+			// This is the older elem
+			rc.older = rc.older.next
 		}
 		if sc.next != nil {
 			sc.next.prev = sc.prev
+		} else {
+			// This is the last elem
+			rc.newer = rc.newer.prev
 		}
 
 		rc.totalClassif += uint64(len(scores) - len(sc.scores))
@@ -180,8 +186,6 @@ func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
 
 	if rc.newer != nil {
 		sc.prev = rc.newer
-		rc.newer.next = sc
-
 		rc.newer.next = sc
 		rc.newer = sc
 	} else {

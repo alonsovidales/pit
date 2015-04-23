@@ -524,7 +524,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 				"success": true,
 				"reqs_sec": %d
 				"stored_elements": %d
-			}`, mg.reqSecStats[group.GroupID].inserts, rec.GetTotalElements())))
+			}`, mg.reqSecStats[group.GroupID].inserts, rec.GetStoredElements())))
 
 			return
 		}
@@ -546,7 +546,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 				"stored_elements": %d,
 				"reqs_sec": %d,
 				"recs": %s
-			}`, rec.GetTotalElements(), mg.reqSecStats[group.GroupID].queries, string(result))))
+			}`, rec.GetStoredElements(), mg.reqSecStats[group.GroupID].queries, string(result))))
 		} else {
 			w.WriteHeader(200)
 			w.Write([]byte(fmt.Sprintf(`{
@@ -555,7 +555,7 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 				"reqs_sec": %d,
 				"stored_elements": %d,
 				"recs": []
-			}`, mg.reqSecStats[group.GroupID].queries, rec.GetTotalElements())))
+			}`, mg.reqSecStats[group.GroupID].queries, rec.GetStoredElements())))
 		}
 
 		return
