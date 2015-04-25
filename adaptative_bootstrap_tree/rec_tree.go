@@ -91,6 +91,7 @@ func ProcessNewTrees(records []map[uint64]uint8, maxDeep int, maxScore uint8, nu
 	elemsPos := make(map[uint64]int)
 
 	i := 0
+	log.Debug("Records:", len(records))
 	for _, record := range records {
 		for k, v := range record {
 			vUint64 := uint64(v)
@@ -133,15 +134,28 @@ func ProcessNewTrees(records []map[uint64]uint8, maxDeep int, maxScore uint8, nu
 	}
 
 	i = 0
-	for element, pos := range elemsPos {
+	studiedIds := make(map[uint64]bool)
+	for {
 		if i >= tr.numOfTrees {
 			return
 		}
 
-		log.Debug("----->>>> Building tree from:", element, i)
-		delete(elemsPos, element)
-		tr.tree[element] = tr.getTreeNode(element, elemsPos, elementsTotals, records, 1)
-		elemsPos[element] = pos
+		max := uint64(0)
+		maxKey := uint64(0)
+		for _, info := range elementsTotals {
+			if max < info.n {
+				if _, ok := studiedIds[info.elemID]; !ok {
+					max = info.n
+					maxKey = info.elemID
+				}
+			}
+		}
+		studiedIds[maxKey] = true
+		pos := elemsPos[maxKey]
+		log.Debug("----->>>> Building tree from:", maxKey, i, elementsTotals[pos].n)
+		delete(elemsPos, maxKey)
+		tr.tree[maxKey] = tr.getTreeNode(maxKey, elemsPos, elementsTotals, records, 1)
+		elemsPos[maxKey] = pos
 
 		i++
 	}
