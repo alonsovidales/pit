@@ -18,8 +18,39 @@ var GroupsController = (function() {
 		},
 
 		init: function() {
+			$('#new-group-form').submit(function (e) {
+				e.preventDefault();
+				addNewGroup();
+			});
+
 			this.getGroupsInfo(plotGroupInfo);
 		}
+	};
+
+	var sanitize = function(k) {
+		return k.replace(/\./g, "-").replace(/:/g, "-");
+	};
+
+	var addNewGroup = function() {
+		$.ajax({
+			type: 'POST',
+			url: cAPIBase + '/add_group',
+			data: {
+				u: LoginController.getUser(),
+				uk: LoginController.getKey(),
+				guid: $('#new-group-name').val(),
+				gt: $('#new-group-type').val(),
+				shards: $('#new-group-shards').val(),
+				maxscore: $('#new-group-max-score').val()
+			},
+			success: function() {
+				location.reload();
+			},
+			error: function(msg) {
+				alert(msg.responseText);
+			},
+			dataType: 'json'
+		});
 	};
 
 	var getShardsInfo = function(groupId, callback) {
@@ -51,7 +82,7 @@ var GroupsController = (function() {
 				k: groupsSecrets[groupId]
 			},
 			success: function(newKey) {
-				$("#group-" + groupId + "-key").text(newKey);
+				$("#group-" + sanitize(groupId) + "-key").text(newKey);
 				groupsSecrets[groupId] = newKey;
 			}
 		});
@@ -62,24 +93,25 @@ var GroupsController = (function() {
 			getShardsInfo(groupId, function (data) {
 				var x = (new Date()).getTime()
 				$.each(data, function(k, v) {
-					var shardIdSanit = k.replace(/\./g, "-");
+					var shardIdSanit = sanitize(k);
+					var sanitGroupID = sanitize(groupId);
 					var secVal = v.queries_by_sec[v.queries_by_sec.length-1];
-					var perc = roundTwoDec(secVal / ~~$("#group-" + groupId + "-req-sec").text() * 100);
+					var perc = roundTwoDec(secVal / ~~$("#group-" + sanitGroupID + "-req-sec").text() * 100);
 					if (perc > 100) {
 						perc = 100;
 					}
-					$("#shard-req-sec-" + groupId + "-" + shardIdSanit).text(secVal);
-					var barDiv = $("#shard-req-sec-prog-bar-" + groupId + "-" + shardIdSanit);
+					$("#shard-req-sec-" + sanitGroupID + "-" + shardIdSanit).text(secVal);
+					var barDiv = $("#shard-req-sec-prog-bar-" + sanitGroupID + "-" + shardIdSanit);
 					barDiv.css("width", perc + "%");
 					barDiv.text(perc + "%");
 
-					$("#shard-elems-stored-" + groupId + "-" + shardIdSanit).text(v.stored_elements);
-					var percElems = roundTwoDec(v.stored_elements / ~~$("#group-" + groupId + "-max-elements").text() * 100);
-					var barDivElems = $("#shard-elems-stored-prog-bar-" + groupId + "-" + shardIdSanit);
+					$("#shard-elems-stored-" + sanitGroupID + "-" + shardIdSanit).text(v.stored_elements);
+					var percElems = roundTwoDec(v.stored_elements / ~~$("#group-" + sanitGroupID + "-max-elements").text() * 100);
+					var barDivElems = $("#shard-elems-stored-prog-bar-" + sanitGroupID + "-" + shardIdSanit);
 					barDivElems.css("width", percElems + "%");
 					barDivElems.text(percElems + "%");
 
-					$("#shard-status-" + groupId + "-" + shardIdSanit).text(v.rec_tree_status);
+					$("#shard-status-" + sanitGroupID + "-" + shardIdSanit).text(v.rec_tree_status);
 
 					if (perc > 80) {
 						barDiv.addClass("progress-bar-danger");
@@ -92,10 +124,10 @@ var GroupsController = (function() {
 						barDiv.removeClass("progress-bar-warning");
 					}
 
-					charts[groupId + "-sec-" + shardIdSanit].addPoint([x, secVal], true, true);
+					charts[sanitGroupID + "-sec-" + shardIdSanit].addPoint([x, secVal], true, true);
 					if (Math.round(x/1000) % 60 === 0) {
 						var minVal = v.queries_by_min[v.queries_by_min.length-1];
-						charts[groupId + "-min-" + shardIdSanit].addPoint([x, minVal], true, true);
+						charts[sanitGroupID + "-min-" + shardIdSanit].addPoint([x, minVal], true, true);
 					}
 				});
 			});
@@ -166,6 +198,23 @@ var GroupsController = (function() {
 		});
 	}
 
+	var removeGroup = function(groupId) {
+		$.ajax({
+			type: 'POST',
+			url: cAPIBase + '/del_group',
+			data: {
+				u: LoginController.getUser(),
+				uk: LoginController.getKey(),
+				k: groupsSecrets[groupId],
+				g: groupId,
+			},
+			success: function(newKey) {
+				alert("Group removed");
+				location.reload();
+			}
+		});
+	};
+
 	var removeShardsContent = function(groupId) {
 		$.ajax({
 			type: 'POST',
@@ -211,30 +260,41 @@ var GroupsController = (function() {
 
 		containerDiv.html('');
 
+		if (data === null) {
+			data = [];
+			$('#shads-container').text('No groups defined');
+		}
 		$.each(data, function (k, v) {
+			v.group_id = sanitize(v.group_id);
 			var html = groupsTemplate(v);
 
 			groupsSecrets[k] = v.secret;
 			containerDiv.append(html);
 
-			$("#shards-update-buttn-" + k).click(function() {
-				updateShardsGroup(k, ~~$("#shards-update-txt-" + k).val());
+			$("#shards-update-buttn-" + sanitize(k)).click(function() {
+				updateShardsGroup(k, ~~$("#shards-update-txt-" + sanitize(k)).val());
 			});
 
-			$("#group-button-" + k + "-remove-all").click(function() {
-				if (confirm('This action will remove all the content from the shards and stored backups, leaving them empty, this action can\'t be undone. Are you completly sure that you want to perform this action?')) {
+			$("#group-button-" + sanitize(k) + "-del-group").click(function() {
+				if (confirm('This action will remove all the content from the shards, stored backups and configuration, this action can\'t be undone. Are you completly sure that you want to perform this action?')) {
+					removeGroup(k);
+				}
+			});
+
+			$("#group-button-" + sanitize(k) + "-remove-all").click(function() {
+				if (confirm('This action will remove all the content from the shards and stored backups, this action can\'t be undone. Are you completly sure that you want to perform this action?')) {
 					removeShardsContent(k);
 				}
 			});
 
-			$("#group-button-" + k + "-key").click(function() {
+			$("#group-button-" + sanitize(k) + "-key").click(function() {
 				if (confirm('Are you sure that you want to regenerate the key for this group?, remember change it on all the clients')) {
 					updateGroupKey(k);
 				}
 			});
 
 			getShardsInfo(k, function(shardsData) {
-				var shardsGroupContainer = $("#group-shards-" + k);
+				var shardsGroupContainer = $("#group-shards-" + sanitize(k));
 				$.each(shardsData, function(host, shardInfo) {
 					var statusLevel;
 
@@ -254,9 +314,9 @@ var GroupsController = (function() {
 					}
 
 					var reqsSec = shardInfo.queries_by_sec[shardInfo.queries_by_sec.length-1];
-					var hostSanit = host.replace(/\./g, "-");
+					var hostSanit = sanitize(host);
 					var templateInfo = {
-						group_id: k,
+						group_id: sanitize(k),
 						shard_id_full: host,
 						shard_id: hostSanit,
 						elems_stored: shardInfo.stored_elements,
@@ -269,8 +329,8 @@ var GroupsController = (function() {
 					shardsGroupContainer.append(shardsTemplate(templateInfo));
 
 					// Add the animated chart at the bottom
-					addAnimatedChar("Req/sec", $("#req-sec-stats-" + k + "-" + hostSanit), k + "-sec-" + hostSanit, shardInfo.queries_by_sec, 1);
-					addAnimatedChar("Req/min", $("#req-min-stats-" + k + "-" + hostSanit), k + "-min-" + hostSanit, shardInfo.queries_by_min, 60);
+					addAnimatedChar("Req/sec", $("#req-sec-stats-" + sanitize(k) + "-" + hostSanit), sanitize(k) + "-sec-" + hostSanit, shardInfo.queries_by_sec, 1);
+					addAnimatedChar("Req/min", $("#req-min-stats-" + sanitize(k) + "-" + hostSanit), sanitize(k) + "-min-" + hostSanit, shardInfo.queries_by_min, 60);
 				});
 			});
 

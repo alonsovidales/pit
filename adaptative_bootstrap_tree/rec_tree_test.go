@@ -30,7 +30,7 @@ func TestCollabInsertion(t *testing.T) {
 	records := []map[uint64]uint8{}
 	log.Info("Parsing test file...")
 	for i := 0; e == nil && i < 10000; i++ {
-	//for i := 0; e == nil && i < 480187; i++ {
+		//for i := 0; e == nil && i < 480187; i++ {
 		s, e = Readln(r)
 		_, scores := parseLine(s)
 		records = append(records, scores)

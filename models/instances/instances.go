@@ -22,7 +22,7 @@ const (
 type ModelInt interface {
 	GetTotalInstances() int
 	GetInstances() (instances []string)
-	GetMaxShardsToAdquire(totalShards int) int
+	GetMaxShardsToAcquire(totalShards int) int
 }
 
 type Model struct {
@@ -93,7 +93,7 @@ func InitAndKeepAlive(prefix string, awsRegion string, keepAlive bool) (im *Mode
 	return
 }
 
-func (im *Model) GetMaxShardsToAdquire(totalShards int) (total int) {
+func (im *Model) GetMaxShardsToAcquire(totalShards int) (total int) {
 	im.mutex.Lock()
 	defer im.mutex.Unlock()
 

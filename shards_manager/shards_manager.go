@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +26,7 @@ const (
 	CGroupInfoPath = "/info"
 
 	// User required actions
+	CDelGroup            = "/del_group"
 	CRegenerateGroupKey  = "/generate_group_key"
 	CGetGroupsByUser     = "/get_groups_by_user"
 	CAddUpdateGroup      = "/add_group"
@@ -101,6 +103,24 @@ func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 
 	go mg.keepUpdateGroup(group.GroupID)
 	log.Info("Finished acquisition of shard on group:", group.GroupID)
+}
+
+func (mg *Manager) recalculateBillingForUser(userID string) {
+	groups := mg.shardsModel.GetAllGroupsByUserID(userID)
+	us := mg.usersModel.AdminGetUserInfoByID(userID)
+	if us == nil {
+		log.Error("User:", userID, "not found")
+		return
+	}
+	shardsInUseByGroupAndType := make(map[string]int)
+	for _, gr := range groups {
+		shardsInUseByGroupAndType[fmt.Sprintf("%s:%s", gr.Type, gr.GroupID)] = len(gr.ShardsByAddr)
+	}
+
+	lastBillInfo := us.GetLastBillInfo()
+	if lastBillInfo == nil || (!reflect.DeepEqual(shardsInUseByGroupAndType, lastBillInfo.Inst) && (lastBillInfo.Ts + 60 < time.Now().Unix())) {
+		us.AddBillingHist(shardsInUseByGroupAndType)
+	}
 }
 
 func (mg *Manager) keepUpdateGroup(groupID string) {
@@ -270,6 +290,14 @@ func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	uid := r.FormValue("u")
 	uKey := r.FormValue("uk")
 	guid := r.FormValue("guid")
+
+	// Sanitize the group ID
+	guid = strings.Replace(guid, " ", "-", -1)
+	guid = strings.Replace(guid, "<", "", -1)
+	guid = strings.Replace(guid, ">", "", -1)
+	guid = strings.Replace(guid, "\"", "", -1)
+	guid = strings.Replace(guid, "'", "", -1)
+
 	user := mg.usersModel.GetUserInfo(uid, uKey)
 	if user == nil {
 		w.WriteHeader(401)
@@ -307,7 +335,7 @@ func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("The param shards is not an integer"))
 		return
 	}
-	maxScoreStr := r.FormValue("max-score")
+	maxScoreStr := r.FormValue("maxscore")
 	maxScore, err := strconv.ParseInt(maxScoreStr, 10, 64)
 	if err != nil {
 		w.WriteHeader(422)
@@ -317,14 +345,18 @@ func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 
 	uuid, _ := uuid.NewV4()
 	guid = guid + ":" + uuid.String()
-	_, key, err := mg.shardsModel.AddUpdateGroup(uid, guid, int(shards), records, reqs, reqs*4, uint8(maxScore))
+	_, key, err := mg.shardsModel.AddUpdateGroup(groupType, uid, guid, int(shards), records, reqs, reqs*4, uint8(maxScore))
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(fmt.Sprintf("Error trying to add a new group:", err)))
 		return
 	}
 
-	user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Added new group of type:", groupType, "with Shards:", shards, "GUID:", guid), r.RemoteAddr)
+	user.AddActivityLog(
+		users.CActivityShardsType,
+		fmt.Sprintf("Added new group of type:", groupType, "with Shards:", shards, "GUID:", guid),
+		r.RemoteAddr)
+
 	w.WriteHeader(200)
 	w.Write([]byte(fmt.Sprintf(`{"success": true, "key": "%s"}`, key)))
 }
@@ -399,6 +431,7 @@ func (mg *Manager) DelGroup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Removed group:", gid), r.RemoteAddr)
+
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	} else {
@@ -441,6 +474,7 @@ func (mg *Manager) SetShards(w http.ResponseWriter, r *http.Request) {
 			users.CActivityShardsType,
 			fmt.Sprintf("Modified number of shards on group: %s, to: %d", gid, shards),
 			r.RemoteAddr)
+
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	} else {
@@ -658,8 +692,8 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (mg *Manager) canAcquireNewShard(group *shardinfo.GroupInfo) bool {
-	maxShardsToAdquire := mg.instancesModel.GetMaxShardsToAdquire(mg.shardsModel.GetTotalNumberOfShards())
-	if maxShardsToAdquire <= len(mg.acquiredShards) {
+	maxShardsToAcquire := mg.instancesModel.GetMaxShardsToAcquire(mg.shardsModel.GetTotalNumberOfShards())
+	if maxShardsToAcquire <= len(mg.acquiredShards) {
 		return false
 	}
 
@@ -678,14 +712,20 @@ func (mg *Manager) manage() {
 	go mg.recalculateRecs()
 
 	for mg.active {
+		users := make(map[string]bool)
 		for _, groups := range mg.shardsModel.GetAllGroups() {
 			for _, group := range groups {
+				users[group.UserID] = true
 				if mg.canAcquireNewShard(group) {
 					if acquired, err := group.AcquireShard(); acquired && err == nil {
 						mg.acquiredShard(group)
 					}
 				}
 			}
+		}
+
+		for usID, _ := range users {
+			mg.recalculateBillingForUser(usID)
 		}
 
 		time.Sleep(time.Second)

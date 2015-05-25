@@ -301,7 +301,7 @@ func addGroup(userID, groupID string, numShards int, maxElements, maxReqSec, max
 	fmt.Println("Max score:", maxScore)
 
 	if askForConfirmation() {
-		_, key, err := md.AddUpdateGroup(userID, groupID, numShards, maxElements, maxReqSec, maxInsertReqSec, maxScore)
+		_, key, err := md.AddUpdateGroup("Custom", userID, groupID, numShards, maxElements, maxReqSec, maxInsertReqSec, maxScore)
 		if err != nil {
 			fmt.Println("Problem adding a new group, Error:", err)
 		} else {

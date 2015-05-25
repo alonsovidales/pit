@@ -107,6 +107,53 @@
 	</div>
 	<div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
 		<h1 class="page-header">Groups / Shards Manager</h1>
+
+
+		<button type="button" class="btn btn-primary btn-s" data-toggle="modal" data-target="#groups-modal" style="margin-bottom: 10px;">
+			Add New Group
+		</button>
+
+		<div class="modal fade" id="groups-modal" tabindex="-1" role="dialog" aria-labelledby="groups-modalLabel" aria-hidden="true">
+			<div class="modal-dialog">
+				<form role="form" id="new-group-form">
+					<div class="modal-content">
+						<div class="modal-header">
+							<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+							<h4 class="modal-title" id="groups-modalLabel">New Group</h4>
+						</div>
+						<div class="modal-body">
+							<div class="form-group">
+								<label for="pwd">Group Name:</label>
+								<input type="text" class="form-control" id="new-group-name" required>
+							</div>
+							<div class="form-group">
+								<label for="pwd">Max score:</label>
+								<input type="number" class="form-control" id="new-group-max-score" required>
+							</div>
+							<div class="form-group">
+								<label for="pwd">Shards:</label>
+								<input type="number" class="form-control" id="new-group-shards" required>
+							</div>
+							<div class="form-group">
+								<label for="pwd">Group Type:</label>
+								<select class="form-control" id="new-group-type">
+									<option value="s">Small</option>
+									<option value="m">Medium</option>
+									<option value="l">Large</option>
+									<option value="xl">Xtra-Large</option>
+									<option value="xxl">Xtra-Xtra-Large</option>
+								</select>
+							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-default" data-dismiss="modal">Discard</button>
+							<button type="submit" class="btn btn-primary">Create new group</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+
 		<div id="shads-container">
 		</div>
 	</div>
@@ -116,7 +163,9 @@
 <div class="panel panel-primary">
 		<div class="panel-heading">
 		    <h3 class="panel-title" id="panel-title">
-			    {{group_id}} <button type="button" class="btn btn-xs btn-danger" style="float: right;" id="group-button-{{group_id}}-remove-all">Remove all the shards content</button>
+			    {{group_id}}
+			    <button type="button" class="btn btn-xs btn-danger" style="float: right; margin-left: 10px;" id="group-button-{{group_id}}-del-group">Delete this group</button>
+			    <button type="button" class="btn btn-xs btn-warning" style="float: right;" id="group-button-{{group_id}}-remove-all">Remove all the shards content</button>
 		    </h3>
 		</div>
 		<div class="panel-body">

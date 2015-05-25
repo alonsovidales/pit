@@ -20,6 +20,7 @@ const (
 	cTable             = "users"
 	cPrimKey           = "uid"
 	cDefaultWRCapacity = 5
+	cCacheTTL  = 5 * time.Second
 
 	CActivityAccountType = "account"
 	CActivityShardsType  = "shards"
@@ -55,15 +56,22 @@ type Model struct {
 	tableName string
 	conn      *dynamodb.Server
 	table     *dynamodb.Table
+	cache     map[string]*User
+}
+
+type Billing struct {
+	Inst map[string]int `json:"inst"`
+	Ts   int64          `json:"ts"`
 }
 
 type User struct {
 	Int `json:"-"`
 
-	uid     string
-	key     string
-	Enabled string `json:"-"`
-	logs    map[string][]*LogLine
+	uid      string
+	key      string
+	Enabled  string `json:"-"`
+	logs     map[string][]*LogLine
+	billHist []*Billing
 
 	RegTs int64  `json:"reg_ts"`
 	RegIP string `json:"reg_ip"`
@@ -78,17 +86,27 @@ func GetModel(prefix string, awsRegion string) (um *Model) {
 			prefix:    prefix,
 			tableName: fmt.Sprintf("%s_%s", prefix, cTable),
 			secret:    []byte(os.Getenv("PIT_SECRET")),
+			cache: make(map[string]*User),
 			conn: &dynamodb.Server{
 				Auth:   awsAuth,
 				Region: aws.Regions[awsRegion],
 			},
 		}
 		um.initTable()
+
+		go um.cacheManager()
 	} else {
 		log.Error("Problem trying to connect with DynamoDB, Error:", err)
 	}
 
 	return
+}
+
+func (um *Model) cacheManager() {
+	c := time.Tick(cCacheTTL)
+	for _ = range c {
+		um.cache = make(map[string]*User)
+	}
 }
 
 func (um *Model) RegisterUserPlainKey(uid string, key string, ip string) (*User, error) {
@@ -101,10 +119,11 @@ func (um *Model) RegisterUserPlainKey(uid string, key string, ip string) (*User,
 	}
 
 	user := &User{
-		uid:     uid,
-		key:     key,
-		Enabled: "1",
-		logs:    make(map[string][]*LogLine),
+		uid:      uid,
+		key:      key,
+		Enabled:  "1",
+		logs:     make(map[string][]*LogLine),
+		billHist: []*Billing{},
 
 		RegTs: time.Now().Unix(),
 		RegIP: ip,
@@ -132,28 +151,43 @@ func (um *Model) GetUserInfo(uid string, key string) (user *User) {
 }
 
 func (um *Model) AdminGetUserInfoByID(uid string) (user *User) {
+	if us, ok := um.cache[uid]; ok {
+		return us
+	}
+
 	attKey := &dynamodb.Key{
 		HashKey:  uid,
 		RangeKey: "",
 	}
+
 	if data, err := um.table.GetItemConsistent(attKey, true); err == nil {
 		user = &User{
-			uid:     uid,
-			key:     data["key"].Value,
-			Enabled: data["enabled"].Value,
-			logs:    make(map[string][]*LogLine),
-			md:      um,
+			uid:      uid,
+			key:      data["key"].Value,
+			Enabled:  data["enabled"].Value,
+			logs:     make(map[string][]*LogLine),
+			billHist: []*Billing{},
+			md:       um,
 		}
 		if err := json.Unmarshal([]byte(data["info"].Value), &user); err != nil {
 			log.Error("Problem trying to retieve the user information for user:", uid, "Error:", err)
 			return nil
 		}
-		if err = json.Unmarshal([]byte(data["logs"].Value), &user.logs); err != nil {
-			log.Error("Problem trying to unmarshal the user logs for user:", uid, "Error:", err)
-			return nil
+		if _, ok := data["logs"]; ok {
+			if err = json.Unmarshal([]byte(data["logs"].Value), &user.logs); err != nil {
+				log.Error("Problem trying to unmarshal the user logs for user:", uid, "Error:", err)
+			}
 		}
+		if _, ok := data["bill_hist"]; ok {
+			if err = json.Unmarshal([]byte(data["bill_hist"].Value), &user.billHist); err != nil {
+				log.Error("Problem trying to unmarshal the user billing history for user:", uid, "Error:", err)
+			}
+		}
+	} else {
+		log.Error("Problem trying to read the user information for user:", uid, "Error:", err)
 	}
 
+	um.cache[uid] = user
 	return
 }
 
@@ -163,11 +197,12 @@ func (um *Model) GetRegisteredUsers() (users map[string]*User) {
 		for _, row := range rows {
 			uid := row["uid"].Value
 			user := &User{
-				uid:     uid,
-				key:     row["key"].Value,
-				Enabled: row["enabled"].Value,
-				logs:    make(map[string][]*LogLine),
-				md:      um,
+				uid:      uid,
+				key:      row["key"].Value,
+				Enabled:  row["enabled"].Value,
+				logs:     make(map[string][]*LogLine),
+				billHist: []*Billing{},
+				md:       um,
 			}
 			if err := json.Unmarshal([]byte(row["info"].Value), &user); err != nil {
 				log.Error("Problem trying to retieve the user information for user:", user.uid, "Error:", err)
@@ -175,6 +210,10 @@ func (um *Model) GetRegisteredUsers() (users map[string]*User) {
 			}
 			if err = json.Unmarshal([]byte(row["logs"].Value), &user.logs); err != nil {
 				log.Error("Problem trying to unmarshal the user logs for user:", user.uid, "Error:", err)
+				return nil
+			}
+			if err = json.Unmarshal([]byte(row["bill_hist"].Value), &user.billHist); err != nil {
+				log.Error("Problem trying to unmarshal the billing history for user:", user.uid, "Error:", err)
 				return nil
 			}
 			users[uid] = user
@@ -198,6 +237,22 @@ func (us *User) EnableUser() (persisted bool) {
 
 func (us *User) UpdateUser(key string) bool {
 	us.key = us.md.HashPassword(key)
+
+	return us.persist()
+}
+
+func (us *User) GetLastBillInfo() *Billing {
+	if len(us.billHist) == 0 {
+		return nil
+	}
+	return us.billHist[len(us.billHist)-1]
+}
+
+func (us *User) AddBillingHist(instruments map[string]int) bool {
+	us.billHist = append(us.billHist, &Billing{
+		Inst: instruments,
+		Ts:   time.Now().Unix(),
+	})
 
 	return us.persist()
 }
@@ -238,11 +293,13 @@ func (um *Model) delTable() {
 func (us *User) persist() bool {
 	userJSONInfo, _ := json.Marshal(us)
 	userJSONLogs, _ := json.Marshal(us.logs)
+	userJSONBillHist, _ := json.Marshal(us.billHist)
 
 	attribs := []dynamodb.Attribute{
 		*dynamodb.NewStringAttribute(cPrimKey, us.uid),
 		*dynamodb.NewStringAttribute("key", us.key),
 		*dynamodb.NewStringAttribute("info", string(userJSONInfo)),
+		*dynamodb.NewStringAttribute("bill_hist", string(userJSONBillHist)),
 		*dynamodb.NewStringAttribute("logs", string(userJSONLogs)),
 		*dynamodb.NewStringAttribute("enabled", string(us.Enabled)),
 	}

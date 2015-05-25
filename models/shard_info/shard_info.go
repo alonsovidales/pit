@@ -61,6 +61,8 @@ type GroupInfo struct {
 	Secret  string `json:"secret"`
 	GroupID string `json:"group_id"`
 
+	// Type group type, will be used for billing proposals
+	Type string `json:"type"`
 	// MaxScore The max score for the group elements
 	MaxScore uint8 `json:"max_score"`
 	// NumShards Total number of shards by this group
@@ -85,7 +87,7 @@ type ModelInt interface {
 	GetAllGroupsByUserID(uid string) map[string]*GroupInfo
 	GetGroupByUserKeyID(userID, secret, groupID string) (gr *GroupInfo, err error)
 	GetGroupByID(groupID string) (gr *GroupInfo)
-	AddUpdateGroup(userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error)
+	AddUpdateGroup(grType, userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error)
 	ReleaseAllAcquiredShards()
 	GetTotalNumberOfShards() (tot int)
 	RemoveGroup(groupID string) (err error)
@@ -136,10 +138,12 @@ func GetModel(prefix, awsRegion, adminEmail string) (md *Model) {
 	return
 }
 
-func (md *Model) AddUpdateGroup(userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error) {
+func (md *Model) AddUpdateGroup(grType, userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error) {
 	var grOk bool
+
 	userGroups, ugOk := md.groups[userID]
 	if gr, grOk = userGroups[groupID]; ugOk && grOk {
+		gr.Type = grType
 		gr.MaxScore = maxScore
 		gr.MaxElements = maxElements
 		gr.MaxReqSec = maxReqSec
@@ -160,6 +164,7 @@ func (md *Model) AddUpdateGroup(userID, groupID string, numShards int, maxElemen
 			NumShards: numShards,
 			MaxScore:  maxScore,
 
+			Type:            grType,
 			MaxElements:     maxElements,
 			MaxReqSec:       maxReqSec,
 			MaxInsertReqSec: maxInsertReqSec,
@@ -552,6 +557,14 @@ func (md *Model) RemoveGroup(groupID string) (err error) {
 		RangeKey: "",
 	}
 
+	gr := md.GetGroupByID(groupID)
+	for i := 0; i < gr.NumShards; i++ {
+		shardAttKey := &dynamodb.Key{
+			HashKey:  fmt.Sprintf("%s:%d", gr.GroupID, i),
+			RangeKey: "",
+		}
+		md.shardsTable.DeleteItem(shardAttKey)
+	}
 	_, err = md.groupsTable.DeleteItem(attKey)
 
 	return

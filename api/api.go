@@ -80,6 +80,7 @@ func (api *API) registerAPIs(ssl bool) {
 	})
 
 	api.muxHTTPServer.HandleFunc(shardsmanager.CRegenerateGroupKey, api.shardsManager.RegenerateGroupKey)
+	api.muxHTTPServer.HandleFunc(shardsmanager.CDelGroup, api.shardsManager.DelGroup)
 	api.muxHTTPServer.HandleFunc(shardsmanager.CGetGroupsByUser, api.shardsManager.GetGroupsByUser)
 	api.muxHTTPServer.HandleFunc(shardsmanager.CAddUpdateGroup, api.shardsManager.AddUpdateGroup)
 	api.muxHTTPServer.HandleFunc(shardsmanager.CSetShardsGroup, api.shardsManager.SetShards)
