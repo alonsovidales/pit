@@ -37,6 +37,7 @@ var ErrSharPrevOwnedGroup = errors.New("This instance yet owns a shard on this g
 
 type GroupInfoInt interface {
 	AcquireShard() (adquired bool, err error)
+	GetUserId()
 	ReleaseShard()
 	IsThisInstanceOwner() bool
 	RegenerateKey() (key string, err error)
@@ -170,6 +171,7 @@ func (md *Model) AddUpdateGroup(grType, userID, groupID string, numShards int, m
 			MaxInsertReqSec: maxInsertReqSec,
 
 			Shards: make(map[int]*Shard),
+			ShardsByAddr: make(map[string]*Shard),
 
 			md: md,
 		}
@@ -252,6 +254,10 @@ func (md *Model) GetGroupByUserKeyID(userID, secret, groupID string) (gr *GroupI
 	}
 
 	return nil, ErrGroupUserNotFound
+}
+
+func (gr *GroupInfo) GetUserId() string {
+	return gr.UserID
 }
 
 func (gr *GroupInfo) RemoveAllContent(rec *recommender.Recommender) bool {
@@ -347,13 +353,16 @@ func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 
 func (md *Model) keepAliveOwnedShard(groupID string, hostName string) {
 	for {
-		gr := md.GetGroupByID(groupID)
-		if shard, ok := gr.ShardsByAddr[hostName]; ok {
-			shard.LastTs = time.Now().Unix()
-			shard.persist()
-			time.Sleep(time.Second * cUpdateShardPeriod)
-		} else {
+		if gr := md.GetGroupByID(groupID); gr == nil {
 			return
+		} else {
+			if shard, ok := gr.ShardsByAddr[hostName]; ok {
+				shard.LastTs = time.Now().Unix()
+				shard.persist()
+				time.Sleep(time.Second * cUpdateShardPeriod)
+			} else {
+				return
+			}
 		}
 	}
 }

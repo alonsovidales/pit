@@ -101,7 +101,7 @@ func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	go mg.reqSecStats[group.GroupID].monitorStats()
 	mg.acquiredShards[group.GroupID] = rec
 
-	go mg.keepUpdateGroup(group.GroupID)
+	go mg.keepUpdateGroup(group.GetUserId(), group.GroupID)
 	log.Info("Finished acquisition of shard on group:", group.GroupID)
 }
 
@@ -123,7 +123,7 @@ func (mg *Manager) recalculateBillingForUser(userID string) {
 	}
 }
 
-func (mg *Manager) keepUpdateGroup(groupID string) {
+func (mg *Manager) keepUpdateGroup(uid, groupID string) {
 	for {
 		gr := mg.shardsModel.GetGroupByID(groupID)
 		if gr == nil || !gr.IsThisInstanceOwner() {
@@ -131,7 +131,8 @@ func (mg *Manager) keepUpdateGroup(groupID string) {
 			delete(mg.acquiredShards, groupID)
 			mg.reqSecStats[groupID].stop = true
 			delete(mg.reqSecStats, groupID)
-			log.Info("Shard released on group:", gr.GroupID)
+			log.Info("Shard released on group:", groupID)
+			mg.recalculateBillingForUser(uid)
 
 			return
 		}
@@ -355,7 +356,7 @@ func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 
 	user.AddActivityLog(
 		users.CActivityShardsType,
-		fmt.Sprintf("Added new group of type:", groupType, "with Shards:", shards, "GUID:", guid),
+		fmt.Sprintf("Added new group of type: %s with Shards: %d GUID: %s", groupType, shards, guid),
 		r.RemoteAddr)
 	mg.recalculateBillingForUser(uid)
 
@@ -432,8 +433,11 @@ func (mg *Manager) DelGroup(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Internal Server Error"))
 			return
 		}
-		user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Removed group:", gid), r.RemoteAddr)
-		mg.recalculateBillingForUser(uid)
+		user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Removed group: %s", gid), r.RemoteAddr)
+		go func () {
+			time.Sleep(10)
+			mg.recalculateBillingForUser(uid)
+		}()
 
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
