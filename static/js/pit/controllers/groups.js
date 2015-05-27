@@ -89,8 +89,13 @@ var GroupsController = (function() {
 	};
 
 	var updateShardsInfo = function (groupId) {
+		var prevInfo = null;
 		setInterval(function () {
 			getShardsInfo(groupId, function (data) {
+				if (prevInfo != null && prevInfo !== Object.keys(data).length) {
+					location.reload();
+				}
+				prevInfo = Object.keys(data).length;
 				var x = (new Date()).getTime()
 				$.each(data, function(k, v) {
 					var shardIdSanit = sanitize(k);
@@ -137,6 +142,9 @@ var GroupsController = (function() {
 	var addAnimatedChar = function(title, targetDiv, id, initialInfo, timeMult) {
 		if (initialInfo.length > 1000) {
 			initialInfo = initialInfo.slice(initialInfo.length-1000);
+		}
+		for (var i = initialInfo.length; i < 60; i++) {
+			initialInfo.push(0);
 		}
 		targetDiv.highcharts({
 			chart: {
@@ -209,8 +217,9 @@ var GroupsController = (function() {
 				g: groupId,
 			},
 			success: function(newKey) {
-				alert("Group removed");
-				location.reload();
+				setTimeout(function() {
+					location.reload();
+				}, 2000);
 			}
 		});
 	};
@@ -243,7 +252,7 @@ var GroupsController = (function() {
 				s: numShards
 			},
 			success: function(newKey) {
-				alert("Updated");
+				//alert("Updated");
 			}
 		});
 	};
@@ -265,6 +274,7 @@ var GroupsController = (function() {
 			$('#shads-container').text('No groups defined');
 		}
 		$.each(data, function (k, v) {
+			v.group_name = v.group_id;
 			v.group_id = sanitize(v.group_id);
 			var html = groupsTemplate(v);
 

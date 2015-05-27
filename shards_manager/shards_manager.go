@@ -118,7 +118,7 @@ func (mg *Manager) recalculateBillingForUser(userID string) {
 	}
 
 	lastBillInfo := us.GetLastBillInfo()
-	if lastBillInfo == nil || (!reflect.DeepEqual(shardsInUseByGroupAndType, lastBillInfo.Inst) && (lastBillInfo.Ts + 60 < time.Now().Unix())) {
+	if lastBillInfo == nil || (!reflect.DeepEqual(shardsInUseByGroupAndType, lastBillInfo.Inst) && (lastBillInfo.Ts + 5 < time.Now().Unix())) {
 		us.AddBillingHist(shardsInUseByGroupAndType)
 	}
 }
@@ -132,6 +132,7 @@ func (mg *Manager) keepUpdateGroup(groupID string) {
 			mg.reqSecStats[groupID].stop = true
 			delete(mg.reqSecStats, groupID)
 			log.Info("Shard released on group:", gr.GroupID)
+
 			return
 		}
 
@@ -356,6 +357,7 @@ func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 		users.CActivityShardsType,
 		fmt.Sprintf("Added new group of type:", groupType, "with Shards:", shards, "GUID:", guid),
 		r.RemoteAddr)
+	mg.recalculateBillingForUser(uid)
 
 	w.WriteHeader(200)
 	w.Write([]byte(fmt.Sprintf(`{"success": true, "key": "%s"}`, key)))
@@ -431,6 +433,7 @@ func (mg *Manager) DelGroup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Removed group:", gid), r.RemoteAddr)
+		mg.recalculateBillingForUser(uid)
 
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
@@ -474,6 +477,7 @@ func (mg *Manager) SetShards(w http.ResponseWriter, r *http.Request) {
 			users.CActivityShardsType,
 			fmt.Sprintf("Modified number of shards on group: %s, to: %d", gid, shards),
 			r.RemoteAddr)
+		mg.recalculateBillingForUser(uid)
 
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))

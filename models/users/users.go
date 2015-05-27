@@ -20,7 +20,7 @@ const (
 	cTable             = "users"
 	cPrimKey           = "uid"
 	cDefaultWRCapacity = 5
-	cCacheTTL  = 5 * time.Second
+	cCacheTTL          = 10 * time.Second
 
 	CActivityAccountType = "account"
 	CActivityShardsType  = "shards"
@@ -57,6 +57,7 @@ type Model struct {
 	conn      *dynamodb.Server
 	table     *dynamodb.Table
 	cache     map[string]*User
+	mutex     sync.Mutex
 }
 
 type Billing struct {
@@ -151,6 +152,8 @@ func (um *Model) GetUserInfo(uid string, key string) (user *User) {
 }
 
 func (um *Model) AdminGetUserInfoByID(uid string) (user *User) {
+	um.mutex.Lock()
+	defer um.mutex.Unlock()
 	if us, ok := um.cache[uid]; ok {
 		return us
 	}
