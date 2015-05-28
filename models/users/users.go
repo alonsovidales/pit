@@ -81,6 +81,18 @@ type User struct {
 	md    *Model
 }
 
+type PaidBills struct {
+	From uint64
+	To uint64
+	Amounth float64
+}
+
+type BillingInfo struct {
+	ToPay     float64
+	PaidBills []*PaidBills
+	History   []*Billing
+}
+
 func GetModel(prefix string, awsRegion string) (um *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
 		um = &Model{
@@ -163,7 +175,7 @@ func (um *Model) AdminGetUserInfoByID(uid string) (user *User) {
 		RangeKey: "",
 	}
 
-	if data, err := um.table.GetItemConsistent(attKey, true); err == nil {
+	if data, err := um.table.GetItemConsistent(attKey, false); err == nil {
 		user = &User{
 			uid:      uid,
 			key:      data["key"].Value,
@@ -224,6 +236,25 @@ func (um *Model) GetRegisteredUsers() (users map[string]*User) {
 	}
 
 	return
+}
+
+func (us *User) GetBillingInfo() (*BillingInfo) {
+	return &BillingInfo {
+		ToPay: 9.85,
+		PaidBills: []*PaidBills {
+			&PaidBills {
+				From: 100,
+				To: 400,
+				Amounth: 4.5,
+			},
+			&PaidBills {
+				From: 400,
+				To: 700,
+				Amounth: 8.45,
+			},
+		},
+		History: us.billHist,
+	}
 }
 
 func (us *User) DisableUser() (persisted bool) {

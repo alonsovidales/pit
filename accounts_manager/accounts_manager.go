@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	CBillingInfo     = "/billing_info"
 	CRegisterPath    = "/account_register"
 	CVerifyPath      = "/account_verify"
 	CLogsPath        = "/account_logs"
@@ -47,6 +48,29 @@ func Init(baseURL, mailFromAddr, mailServerAddr string, mailServerPort int64, us
 	}
 
 	return
+}
+
+func (mg *Manager) BillingInfo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	uid := r.FormValue("u")
+	key := r.FormValue("k")
+
+	if userInfo := mg.usersModel.GetUserInfo(uid, key); userInfo != nil {
+		logs := userInfo.GetBillingInfo()
+		logsJSON, err := json.Marshal(logs)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte("User billing logs can't be converted to JSON"))
+			return
+		}
+
+		w.WriteHeader(200)
+		w.Write(logsJSON)
+	} else {
+		w.WriteHeader(401)
+		w.Write([]byte(fmt.Sprint("Unauthorized")))
+	}
 }
 
 func (mg *Manager) Register(w http.ResponseWriter, r *http.Request) {

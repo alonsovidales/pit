@@ -86,6 +86,7 @@ func (api *API) registerAPIs(ssl bool) {
 	api.muxHTTPServer.HandleFunc(shardsmanager.CSetShardsGroup, api.shardsManager.SetShards)
 	api.muxHTTPServer.HandleFunc(shardsmanager.CRemoveShardsContent, api.shardsManager.RemoveShardsContent)
 
+	api.muxHTTPServer.HandleFunc(accountsmanager.CBillingInfo, api.accountsManager.BillingInfo)
 	api.muxHTTPServer.HandleFunc(accountsmanager.CRegisterPath, api.accountsManager.Register)
 	api.muxHTTPServer.HandleFunc(accountsmanager.CVerifyPath, api.accountsManager.Verify)
 	api.muxHTTPServer.HandleFunc(accountsmanager.CLogsPath, api.accountsManager.Logs)
