@@ -7,7 +7,7 @@ var BillingController = (function() {
 				data: {
 					u: LoginController.getUser(),
 					k: LoginController.getKey(),
-					},
+				},
 				success: function(data) {
 					console.log('Result');
 					console.log(data);

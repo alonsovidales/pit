@@ -109,6 +109,29 @@
 		<h1 class="page-header">Billing</h1>
 
 		<div id="billing-container">
+			<div class="panel panel-default">
+				<div class="panel-heading">
+					Historic of charges:<br />
+					<span class="paid-legend"><div class="paid-charges"></div>Already covered</span> <br />
+					<span class="paid-legend"><div class="no-paid-charges"></div>To be charged</span>
+				</div>
+					<table class="table">
+						<thead>
+							<tr>
+								<th width="40">#</th>
+								<th width="300">Group</th>
+								<th width="150">Number of instances</th>
+								<th width="50">Type</th>
+								<th width="50">Hours</th>
+								<th width="150">Price per hour (USD)</th>
+								<th width="100">Total cost</th>
+							</tr>
+						</thead>
+						<tbody id="billing-pending-table-body">
+						</tbody>
+					</table>
+				</div>
+			</div>
 		</div>
 	</div>
 </div>

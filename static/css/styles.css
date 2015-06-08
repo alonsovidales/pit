@@ -337,3 +337,33 @@ ul.group-desc {
 .contact {
 	background-color: #609572;
 }
+
+#top-menu-option a {
+	color: #fff;
+}
+
+#top-menu-option li.active a {
+	color: #555;
+}
+
+.paid-charges {
+	margin-top: 6px;
+	margin-right: 5px;
+	float: left;
+	width: 10px;
+	height: 10px;
+	background-color: #cfe5f2;
+}
+
+.no-paid-charges {
+	margin-top: 6px;
+	margin-right: 5px;
+	float: left;
+	width: 10px;
+	height: 10px;
+	background-color: #bcf0c9;
+}
+
+.paid-legend {
+	font-size: 10px;
+}
