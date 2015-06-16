@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alonsovidales/pit/cfg"
 	"github.com/alonsovidales/pit/log"
 	"github.com/goamz/goamz/aws"
 	"github.com/goamz/goamz/dynamodb"
@@ -61,8 +62,17 @@ type Model struct {
 }
 
 type Billing struct {
-	Inst map[string]int `json:"inst"`
-	Ts   int64          `json:"ts"`
+	Inst map[string]int
+	Ts   int64
+}
+
+type BillingLine struct {
+	Group string `json:"group"`
+	Instances int `json:"instances"`
+	Type string `json:"type"`
+	Price float64 `json:"price"`
+	From int64 `json:"from"`
+	To int64 `json:"to"`
 }
 
 type User struct {
@@ -82,15 +92,15 @@ type User struct {
 }
 
 type PaidBills struct {
-	From uint64
-	To uint64
-	Amounth float64
+	From    uint64  `json:"from"`
+	To      uint64  `json:"to"`
+	Amounth float64 `json:"amounth"`
 }
 
 type BillingInfo struct {
-	ToPay     float64
-	PaidBills []*PaidBills
-	History   []*Billing
+	ToPay     float64      `json:"to_pay"`
+	PaidBills []*PaidBills `json:"paidbill"`
+	History   []*BillingLine   `json:"history"`
 }
 
 func GetModel(prefix string, awsRegion string) (um *Model) {
@@ -99,7 +109,7 @@ func GetModel(prefix string, awsRegion string) (um *Model) {
 			prefix:    prefix,
 			tableName: fmt.Sprintf("%s_%s", prefix, cTable),
 			secret:    []byte(os.Getenv("PIT_SECRET")),
-			cache: make(map[string]*User),
+			cache:     make(map[string]*User),
 			conn: &dynamodb.Server{
 				Auth:   awsAuth,
 				Region: aws.Regions[awsRegion],
@@ -238,23 +248,85 @@ func (um *Model) GetRegisteredUsers() (users map[string]*User) {
 	return
 }
 
-func (us *User) GetBillingInfo() (*BillingInfo) {
-	return &BillingInfo {
+func (us *User) GetBillingInfo() (bi *BillingInfo) {
+/*type Billing struct {
+	Inst map[string]int
+	Ts   int64
+}*/
+/*type BillingLine struct {
+	Group string `json:"group"`
+	Instances int `json:"instances"`
+	Type string `json:"type"`
+	Price float64 `json:"price"`
+	From int64 `json:"from"`
+	To int64 `json:"to"`*/
+	bi = &BillingInfo{
 		ToPay: 9.85,
-		PaidBills: []*PaidBills {
-			&PaidBills {
-				From: 100,
-				To: 400,
+		PaidBills: []*PaidBills{
+			&PaidBills{
+				From:    1432767388,
+				To:      1432836873,
 				Amounth: 4.5,
 			},
-			&PaidBills {
-				From: 400,
-				To: 700,
+			&PaidBills{
+				From:    1432836873,
+				To:      1433788122,
 				Amounth: 8.45,
 			},
 		},
-		History: us.billHist,
+		History: []*BillingLine{},
 	}
+
+	lastTimeSaw := make(map[string]int64)
+	lastNumInst := make(map[string]int)
+
+	for _, bl := range us.billHist {
+		for group, instances := range bl.Inst {
+			if lastInst, ok := lastNumInst[group]; ok && instances != lastInst {
+				if lastInst > 0 {
+					parts := strings.SplitAfterN(group, ":", 2)
+					groupType := parts[0][:len(parts[0])-1]
+					_, _, costHour := GetGroupInfo(groupType)
+					totalTime := bl.Ts - lastTimeSaw[group]
+					bi.History = append(bi.History, &BillingLine {
+						Group: parts[1],
+						Instances: lastInst,
+						Type: groupType,
+						Price: costHour * (float64(totalTime) / 3600) * float64(lastInst),
+						From: lastTimeSaw[group],
+						To: bl.Ts,
+					})
+				}
+
+				lastTimeSaw[group] = bl.Ts
+				lastNumInst[group] = instances
+			} else if !ok {
+				lastTimeSaw[group] = bl.Ts
+				lastNumInst[group] = instances
+			}
+		}
+
+	}
+
+	for group, instances := range lastNumInst {
+		if instances > 0 {
+			parts := strings.SplitAfterN(group, ":", 2)
+			groupType := parts[0][:len(parts[0])-1]
+			totalTime := time.Now().Unix() - lastTimeSaw[group]
+			_, _, costHour := GetGroupInfo(groupType)
+
+			bi.History = append(bi.History, &BillingLine {
+				Group: parts[1],
+				Instances: instances,
+				Type: groupType,
+				Price: costHour * (float64(totalTime) / 3600) * float64(instances),
+				From: lastTimeSaw[group],
+				To: time.Now().Unix(),
+			})
+		}
+	}
+
+	return
 }
 
 func (us *User) DisableUser() (persisted bool) {
@@ -382,4 +454,31 @@ func (um *Model) initTable() {
 		log.Debug("Waiting for active table, current status:", res.TableStatus)
 		time.Sleep(time.Second)
 	}
+}
+
+func GetGroupInfo(groupType string) (reqs, records uint64, costHour float64) {
+	switch groupType {
+	case "s":
+		reqs = cfg.GetUint64("group-types", "small-reqs")
+		records = cfg.GetUint64("group-types", "small-records")
+		costHour = cfg.GetFloat("group-types", "small-cost-hour")
+	case "m":
+		reqs = cfg.GetUint64("group-types", "medium-reqs")
+		records = cfg.GetUint64("group-types", "medium-records")
+		costHour = cfg.GetFloat("group-types", "medium-cost-hour")
+	case "l":
+		reqs = cfg.GetUint64("group-types", "large-reqs")
+		records = cfg.GetUint64("group-types", "large-records")
+		costHour = cfg.GetFloat("group-types", "large-cost-hour")
+	case "xl":
+		reqs = cfg.GetUint64("group-types", "x-large-reqs")
+		records = cfg.GetUint64("group-types", "x-large-records")
+		costHour = cfg.GetFloat("group-types", "x-large-cost-hour")
+	case "xxl":
+		reqs = cfg.GetUint64("group-types", "xx-large-reqs")
+		records = cfg.GetUint64("group-types", "xx-large-records")
+		costHour = cfg.GetFloat("group-types", "xx-large-cost-hour")
+	}
+
+	return
 }

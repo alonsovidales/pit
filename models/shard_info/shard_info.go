@@ -170,7 +170,7 @@ func (md *Model) AddUpdateGroup(grType, userID, groupID string, numShards int, m
 			MaxReqSec:       maxReqSec,
 			MaxInsertReqSec: maxInsertReqSec,
 
-			Shards: make(map[int]*Shard),
+			Shards:       make(map[int]*Shard),
 			ShardsByAddr: make(map[string]*Shard),
 
 			md: md,

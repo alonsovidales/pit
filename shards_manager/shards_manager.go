@@ -118,7 +118,7 @@ func (mg *Manager) recalculateBillingForUser(userID string) {
 	}
 
 	lastBillInfo := us.GetLastBillInfo()
-	if lastBillInfo == nil || (!reflect.DeepEqual(shardsInUseByGroupAndType, lastBillInfo.Inst) && (lastBillInfo.Ts + 5 < time.Now().Unix())) {
+	if lastBillInfo == nil || (!reflect.DeepEqual(shardsInUseByGroupAndType, lastBillInfo.Inst) && (lastBillInfo.Ts+5 < time.Now().Unix())) {
 		us.AddBillingHist(shardsInUseByGroupAndType)
 	}
 }
@@ -287,8 +287,6 @@ func (mg *Manager) GroupInfoAPIHandler(w http.ResponseWriter, r *http.Request) {
 func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	var reqs, records uint64
-
 	uid := r.FormValue("u")
 	uKey := r.FormValue("uk")
 	guid := r.FormValue("guid")
@@ -308,23 +306,8 @@ func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	groupType := r.FormValue("gt")
-	switch groupType {
-	case "s":
-		reqs = cfg.GetUint64("group-types", "small-reqs")
-		records = cfg.GetUint64("group-types", "small-records")
-	case "m":
-		reqs = cfg.GetUint64("group-types", "medium-reqs")
-		records = cfg.GetUint64("group-types", "medium-records")
-	case "l":
-		reqs = cfg.GetUint64("group-types", "large-reqs")
-		records = cfg.GetUint64("group-types", "large-records")
-	case "xl":
-		reqs = cfg.GetUint64("group-types", "x-large-reqs")
-		records = cfg.GetUint64("group-types", "x-large-records")
-	case "xxl":
-		reqs = cfg.GetUint64("group-types", "xx-large-reqs")
-		records = cfg.GetUint64("group-types", "xx-large-records")
-	default:
+	reqs, records, _ := users.GetGroupInfo(groupType)
+	if reqs == 0 {
 		w.WriteHeader(422)
 		w.Write([]byte("Group type required"))
 		return
@@ -434,7 +417,7 @@ func (mg *Manager) DelGroup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		user.AddActivityLog(users.CActivityShardsType, fmt.Sprintf("Removed group: %s", gid), r.RemoteAddr)
-		go func () {
+		go func() {
 			time.Sleep(10)
 			mg.recalculateBillingForUser(uid)
 		}()
