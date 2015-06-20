@@ -69,7 +69,7 @@ static_deb:
 deploy_dev: deb
 	@ for SERVER in $$PIT_DEV_SERVERS ; do \
 		echo "Uploading code to server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
-		scp -l 2400 -i $$HOME/.ssh/id_rsa_dev_pit pit.deb ubuntu@$$SERVER:/tmp/pit.deb ; \
+		scp -i $$HOME/.ssh/id_rsa_dev_pit pit.deb ubuntu@$$SERVER:/tmp/pit.deb ; \
 	done
 	@ for SERVER in $$PIT_DEV_SERVERS ; do \
 		echo "Deploying new code on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
@@ -77,10 +77,10 @@ deploy_dev: deb
 	done
 
 deploy_pro: deb
-	#ssh-add $$HOME/.ssh/id_rsa_pro_pit
+	ssh-add $$HOME/.ssh/id_rsa_pro_pit
 	@ for SERVER in $$PIT_PRO_SERVERS ; do \
 		echo "Uploading code to server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
-		scp -l 2400 -i $$HOME/.ssh/id_rsa_pro_pit pit.deb root@$$SERVER:/tmp/pit.deb ; \
+		scp -i $$HOME/.ssh/id_rsa_pro_pit pit.deb root@$$SERVER:/tmp/pit.deb ; \
 	done
 	@ for SERVER in $$PIT_PRO_SERVERS ; do \
 		echo "Deploying new code on server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
@@ -88,6 +88,7 @@ deploy_pro: deb
 	done
 
 deploy_static_pro: static_deb
+	ssh-add $$HOME/.ssh/id_rsa_pro_pit
 	@ for SERVER in $$PIT_PRO_SERVERS ; do \
 		echo "Uploading code to server: $(OK_COLOR)$$SERVER$(NO_COLOR)"; \
 		scp -i $$HOME/.ssh/id_rsa_pro_pit pit_static.deb root@$$SERVER:/tmp/pit_static.deb ; \

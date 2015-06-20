@@ -108,30 +108,51 @@
 	<div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
 		<h1 class="page-header">Billing</h1>
 
-		<div id="billing-container">
+		<h2 class="page-header">Billing History</h2>
+
+		<h4 class="page-header">Month-to-date Cost <span id="month-do-date-cost"></span></h4>
+		<div id="billing-container" width="300">
+			<div class="panel panel-default">
+				<div class="panel-heading">
+					Billing history:<br />
+				</div>
+				<table class="table">
+					<thead>
+						<tr>
+							<th width="40">#</th>
+							<th width="300">From</th>
+							<th width="300">To</th>
+							<th width="50">Amounth</th>
+							<th>Paid</th>
+						</tr>
+					</thead>
+					<tbody id="billing-history-table-body">
+					</tbody>
+				</table>
+			</div>
 			<div class="panel panel-default">
 				<div class="panel-heading">
 					Historic of charges:<br />
 					<span class="paid-legend"><div class="paid-charges"></div>Already covered</span> <br />
 					<span class="paid-legend"><div class="no-paid-charges"></div>To be charged</span>
 				</div>
-					<table class="table">
-						<thead>
-							<tr>
-								<th width="40">#</th>
-								<th width="300">Group</th>
-								<th width="50">Instances</th>
-								<th width="50">Type</th>
-								<th width="50">From</th>
-								<th width="50">To</th>
-								<th width="50">Hours</th>
-								<th width="100">Total cost</th>
-							</tr>
-						</thead>
-						<tbody id="billing-pending-table-body">
-						</tbody>
-					</table>
-				</div>
+				<table class="table">
+					<thead>
+						<tr>
+							<th width="40">#</th>
+							<th width="300">Group</th>
+							<th width="50">* Instances</th>
+							<th width="50">Type</th>
+							<th width="50">From</th>
+							<th width="50">To</th>
+							<th width="50">Hours</th>
+							<th width="100">Total cost</th>
+						</tr>
+					</thead>
+					<tbody id="billing-pending-table-body">
+					</tbody>
+				</table>
+				* In order to warranty the best of the services, each group counts with at least two instances, but we only bill by one of the first to instances on this group
 			</div>
 		</div>
 	</div>

@@ -352,7 +352,7 @@ ul.group-desc {
 	float: left;
 	width: 10px;
 	height: 10px;
-	background-color: #cfe5f2;
+	background-color: #ccf0d9;
 }
 
 .no-paid-charges {
@@ -361,9 +361,21 @@ ul.group-desc {
 	float: left;
 	width: 10px;
 	height: 10px;
-	background-color: #bcf0c9;
+	background-color: #dff5f2;
 }
 
 .paid-legend {
 	font-size: 10px;
+}
+
+.billing_row_paid {
+	background-color: #ccf0d9;
+}
+
+.billing_row_nopaid {
+	background-color: #dff5f2;
+}
+
+#month-do-date-cost {
+	font-weight: bold;
 }

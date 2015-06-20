@@ -73,6 +73,7 @@ type BillingLine struct {
 	Price float64 `json:"price"`
 	From int64 `json:"from"`
 	To int64 `json:"to"`
+	Paid bool `json:"paid"`
 }
 
 type User struct {
@@ -91,15 +92,16 @@ type User struct {
 	md    *Model
 }
 
-type PaidBills struct {
+type Bills struct {
 	From    uint64  `json:"from"`
 	To      uint64  `json:"to"`
-	Amounth float64 `json:"amounth"`
+	Amount float64 `json:"amount"`
+	Paid bool `json:"paid"`
 }
 
 type BillingInfo struct {
 	ToPay     float64      `json:"to_pay"`
-	PaidBills []*PaidBills `json:"paidbill"`
+	Bills []*Bills `json:"bills"`
 	History   []*BillingLine   `json:"history"`
 }
 
@@ -261,68 +263,110 @@ func (us *User) GetBillingInfo() (bi *BillingInfo) {
 	From int64 `json:"from"`
 	To int64 `json:"to"`*/
 	bi = &BillingInfo{
-		ToPay: 9.85,
-		PaidBills: []*PaidBills{
-			&PaidBills{
+		ToPay: 0.0,
+		Bills: []*Bills{
+			&Bills{
 				From:    1432767388,
-				To:      1432836873,
-				Amounth: 4.5,
+				To:      1432807388,
+				Amount: 293.5,
+				Paid: true,
 			},
-			&PaidBills{
+			&Bills{
+				From:    1432807388,
+				To:      1432836873,
+				Amount: 403.5,
+				Paid: true,
+			},
+			&Bills{
 				From:    1432836873,
-				To:      1433788122,
-				Amounth: 8.45,
+				To:      1433345395,
+				Amount: 800.45,
+				Paid: false,
 			},
 		},
 		History: []*BillingLine{},
 	}
 
+	lastBillTs := int64(bi.Bills[len(bi.Bills)-1].To)
 	lastTimeSaw := make(map[string]int64)
 	lastNumInst := make(map[string]int)
+	groupsCovered := make(map[string]bool)
 
 	for _, bl := range us.billHist {
 		for group, instances := range bl.Inst {
-			if lastInst, ok := lastNumInst[group]; ok && instances != lastInst {
-				if lastInst > 0 {
-					parts := strings.SplitAfterN(group, ":", 2)
-					groupType := parts[0][:len(parts[0])-1]
-					_, _, costHour := GetGroupInfo(groupType)
-					totalTime := bl.Ts - lastTimeSaw[group]
-					bi.History = append(bi.History, &BillingLine {
-						Group: parts[1],
-						Instances: lastInst,
-						Type: groupType,
-						Price: costHour * (float64(totalTime) / 3600) * float64(lastInst),
-						From: lastTimeSaw[group],
-						To: bl.Ts,
-					})
-				}
+			toTs := bl.Ts
+			billingBorder := false
+			if _, ok := groupsCovered[group]; !ok && toTs > lastBillTs {
+				toTs = lastBillTs
+				billingBorder = true
+				groupsCovered[group] = true
+			}
 
-				lastTimeSaw[group] = bl.Ts
+			if lastInst, ok := lastNumInst[group]; ok {
+				if lastInst > 1 {
+					lastInst--
+				}
+				if instances != lastInst || billingBorder {
+					if lastInst > 0 {
+						parts := strings.SplitAfterN(group, ":", 2)
+						groupType := parts[0][:len(parts[0])-1]
+						_, _, costHour := GetGroupInfo(groupType)
+						totalTime := toTs - lastTimeSaw[group]
+						cost := costHour * (float64(totalTime) / 3600) * float64(lastInst)
+						bi.History = append(bi.History, &BillingLine{
+							Group: parts[1],
+							Instances: lastInst,
+							Type: groupType,
+							Price: cost,
+							From: lastTimeSaw[group],
+							To: toTs,
+							Paid: toTs <= lastBillTs,
+						})
+
+						if toTs > lastBillTs {
+							bi.ToPay += cost
+						}
+					}
+
+					lastTimeSaw[group] = toTs
+					lastNumInst[group] = instances
+				}
+			} else {
+				lastTimeSaw[group] = toTs
 				lastNumInst[group] = instances
-			} else if !ok {
-				lastTimeSaw[group] = bl.Ts
-				lastNumInst[group] = instances
+			}
+		}
+
+		for group, _ := range lastNumInst {
+			if _, ok := bl.Inst[group]; !ok {
+				delete(lastTimeSaw, group)
+				delete(lastNumInst, group)
 			}
 		}
 
 	}
 
 	for group, instances := range lastNumInst {
+		if instances > 1 {
+			instances--
+		}
 		if instances > 0 {
 			parts := strings.SplitAfterN(group, ":", 2)
 			groupType := parts[0][:len(parts[0])-1]
 			totalTime := time.Now().Unix() - lastTimeSaw[group]
 			_, _, costHour := GetGroupInfo(groupType)
+			cost := costHour * (float64(totalTime) / 3600) * float64(instances)
 
 			bi.History = append(bi.History, &BillingLine {
 				Group: parts[1],
 				Instances: instances,
 				Type: groupType,
-				Price: costHour * (float64(totalTime) / 3600) * float64(instances),
+				Price: cost,
 				From: lastTimeSaw[group],
 				To: time.Now().Unix(),
+				Paid: false,
 			})
+			bi.ToPay += cost
 		}
 	}
 
