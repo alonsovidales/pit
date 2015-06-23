@@ -67,13 +67,13 @@ type Billing struct {
 }
 
 type BillingLine struct {
-	Group string `json:"group"`
-	Instances int `json:"instances"`
-	Type string `json:"type"`
-	Price float64 `json:"price"`
-	From int64 `json:"from"`
-	To int64 `json:"to"`
-	Paid bool `json:"paid"`
+	Group     string  `json:"group"`
+	Instances int     `json:"instances"`
+	Type      string  `json:"type"`
+	Price     float64 `json:"price"`
+	From      int64   `json:"from"`
+	To        int64   `json:"to"`
+	Paid      bool    `json:"paid"`
 }
 
 type User struct {
@@ -93,16 +93,16 @@ type User struct {
 }
 
 type Bills struct {
-	From    uint64  `json:"from"`
-	To      uint64  `json:"to"`
+	From   uint64  `json:"from"`
+	To     uint64  `json:"to"`
 	Amount float64 `json:"amount"`
-	Paid bool `json:"paid"`
+	Paid   bool    `json:"paid"`
 }
 
 type BillingInfo struct {
-	ToPay     float64      `json:"to_pay"`
-	Bills []*Bills `json:"bills"`
-	History   []*BillingLine   `json:"history"`
+	ToPay   float64        `json:"to_pay"`
+	Bills   []*Bills       `json:"bills"`
+	History []*BillingLine `json:"history"`
 }
 
 func GetModel(prefix string, awsRegion string) (um *Model) {
@@ -251,11 +251,11 @@ func (um *Model) GetRegisteredUsers() (users map[string]*User) {
 }
 
 func (us *User) GetBillingInfo() (bi *BillingInfo) {
-/*type Billing struct {
-	Inst map[string]int
-	Ts   int64
-}*/
-/*type BillingLine struct {
+	/*type Billing struct {
+		Inst map[string]int
+		Ts   int64
+	}*/
+	/*type BillingLine struct {
 	Group string `json:"group"`
 	Instances int `json:"instances"`
 	Type string `json:"type"`
@@ -266,22 +266,22 @@ func (us *User) GetBillingInfo() (bi *BillingInfo) {
 		ToPay: 0.0,
 		Bills: []*Bills{
 			&Bills{
-				From:    1432767388,
-				To:      1432807388,
+				From:   1432767388,
+				To:     1432807388,
 				Amount: 293.5,
-				Paid: true,
+				Paid:   true,
 			},
 			&Bills{
-				From:    1432807388,
-				To:      1432836873,
+				From:   1432807388,
+				To:     1432836873,
 				Amount: 403.5,
-				Paid: true,
+				Paid:   true,
 			},
 			&Bills{
-				From:    1432836873,
-				To:      1433345395,
+				From:   1432836873,
+				To:     1433345395,
 				Amount: 800.45,
-				Paid: false,
+				Paid:   false,
 			},
 		},
 		History: []*BillingLine{},
@@ -314,13 +314,13 @@ func (us *User) GetBillingInfo() (bi *BillingInfo) {
 						totalTime := toTs - lastTimeSaw[group]
 						cost := costHour * (float64(totalTime) / 3600) * float64(lastInst)
 						bi.History = append(bi.History, &BillingLine{
-							Group: parts[1],
+							Group:     parts[1],
 							Instances: lastInst,
-							Type: groupType,
-							Price: cost,
-							From: lastTimeSaw[group],
-							To: toTs,
-							Paid: toTs <= lastBillTs,
+							Type:      groupType,
+							Price:     cost,
+							From:      lastTimeSaw[group],
+							To:        toTs,
+							Paid:      toTs <= lastBillTs,
 						})
 
 						if toTs > lastBillTs {
@@ -357,14 +357,14 @@ func (us *User) GetBillingInfo() (bi *BillingInfo) {
 			_, _, costHour := GetGroupInfo(groupType)
 			cost := costHour * (float64(totalTime) / 3600) * float64(instances)
 
-			bi.History = append(bi.History, &BillingLine {
-				Group: parts[1],
+			bi.History = append(bi.History, &BillingLine{
+				Group:     parts[1],
 				Instances: instances,
-				Type: groupType,
-				Price: cost,
-				From: lastTimeSaw[group],
-				To: time.Now().Unix(),
-				Paid: false,
+				Type:      groupType,
+				Price:     cost,
+				From:      lastTimeSaw[group],
+				To:        time.Now().Unix(),
+				Paid:      false,
 			})
 			bi.ToPay += cost
 		}
