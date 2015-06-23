@@ -51,7 +51,7 @@
 				<a href="cases-of-use">Cases Of Use</a>
 				</li>
 				<li class="page-scroll">
-					<!--<a href="pricing">Pricing</a>-->
+					<a href="pricing">Pricing</a>
 				</li>
 				<li class="active page-scroll">
 				<a href="api">API Specifications</a>
@@ -63,27 +63,34 @@
 				<a href="account-panel">Management Panel</a>
 				</li>
 				<li class="dropdown" id="login-dropdown">
-				<a class="dropdown-toggle" href="javascript:void(0);" data-toggle="dropdown">
-					<span class="label label-success">
-						Log In <strong class="caret"></strong>
-					</span>
-				</a>
-				<div class="dropdown-menu login-dropdown-menu">
-					<form class="navbar-form navbar-right" id="login-form">
-						<span id="login-incorrect" class="label label-danger">
-							User/Pass incorrect
+					<a class="dropdown-toggle" href="javascript:void(0);" data-toggle="dropdown" style="padding: 6px">
+						<span type="button" class="btn btn-success btn-s" aria-label="Left Align">
+							Log In <strong class="caret"></strong>
 						</span>
-						<div class="login-form-group">
-							<input type="email" placeholder="Email" class="form-control input-sm" id="login-email" required>
-						</div>
-						<div class="login-form-group">
-							<input type="password" placeholder="Password" class="form-control input-sm" id="login-pass" required>
-						</div>
-						<div class="login-form-group">
-							<button type="submit" class="btn btn-success btn-sm" id="login-button">Sign in</button>
-						</div>
-					</form>
-				</div>
+					</a>
+					<div class="dropdown-menu login-dropdown-menu">
+						<form class="navbar-form navbar-right" id="login-form">
+							<span id="login-incorrect" class="label label-danger">
+								User/Pass incorrect
+							</span>
+							<div class="login-form-group">
+								<input type="email" placeholder="Email" class="form-control input-sm" id="login-email" required>
+							</div>
+							<div class="login-form-group">
+								<input type="password" placeholder="Password" class="form-control input-sm" id="login-pass" required>
+							</div>
+							<div class="login-form-group">
+								<button type="submit" class="btn btn-success btn-sm" id="login-button">Sign in</button>
+							</div>
+						</form>
+					</div>
+				</li>
+				<li id="try-it-button">
+					<a href="try-it" style="padding: 7px">
+						<button type="button" class="btn btn-warning btn-s" aria-label="Left Align">
+							Try It!
+						</button>
+					</a>
 				</li>
 				<li id="logout-container" class="page-scroll">
 				<div class="navbar-form navbar-right" id="log-out-div">

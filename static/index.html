@@ -49,7 +49,7 @@
 					<a href="cases-of-use">Cases Of Use</a>
 				</li>
 				<li class="page-scroll">
-					<!--<a href="pricing">Pricing</a>-->
+					<a href="pricing">Pricing</a>
 				</li>
 				<li class="page-scroll">
 					<a href="api">API Specifications</a>
@@ -61,8 +61,8 @@
 					<a href="account-panel">Management Panel</a>
 				</li>
 				<li class="dropdown" id="login-dropdown">
-					<a class="dropdown-toggle" href="javascript:void(0);" data-toggle="dropdown">
-						<span class="label label-success">
+					<a class="btn dropdown-toggle" href="javascript:void(0);" data-toggle="dropdown" style="padding: 6px">
+						<span type="button" class="btn btn-success btn-s" aria-label="Left Align">
 							Log In <strong class="caret"></strong>
 						</span>
 					</a>
@@ -82,6 +82,13 @@
 							</div>
 						</form>
 					</div>
+				</li>
+				<li id="try-it-button">
+					<a href="try-it" style="padding: 7px">
+						<button type="button" class="btn btn-warning btn-s" aria-label="Left Align">
+							Try It!
+						</button>
+					</a>
 				</li>
 				<li id="logout-container" class="page-scroll">
 					<div class="navbar-form navbar-right" id="log-out-div">
@@ -164,19 +171,20 @@
 		</ul>
 	</div>
 
-	<!--<div class="col-md-12 text-center main-pricing-wrapper">
+	<div class="col-md-12 text-center main-pricing-wrapper">
 		<h2>Pricing</h2>
+		<h4 class="free-text">* Try Pitia For Free!</h4>
 		<div class="col-md-6 text-center main-pricing-cols">
 			<div class="panel panel-info main-instance-pannel">
 				<div class="panel-heading">
-					Small - $7 / month
+					Small - $ 0,0097 / hour
 				</div>
 				<ul class="main-instance-pannel-info">
 					<li>
-					<strong>Requests per second:</strong> <span class="special-text special-text-small">200</span>
+					<strong>Requests per second:</strong> <span class="special-text special-text-small">50</span>
 					</li>
 					<li>
-					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">800</span>
+					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">200</span>
 					</li>
 					<li>
 					<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">2.000.000</span>
@@ -186,14 +194,14 @@
 			<br />
 			<div class="panel panel-info main-instance-pannel">
 				<div class="panel-heading">
-					Medium - $16 / month
+					Medium - $ 0,0222 / hour
 				</div>
 				<ul class="main-instance-pannel-info">
 					<li>
-					<strong>Requests per second:</strong> <span class="special-text special-text-small">600</span>
+					<strong>Requests per second:</strong> <span class="special-text special-text-small">150</span>
 					</li>
 					<li>
-					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
+					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">600</span>
 					</li>
 					<li>
 					<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">6.000.000</span>
@@ -203,14 +211,14 @@
 			<br />
 			<div class="panel panel-info main-instance-pannel">
 				<div class="panel-heading">
-					Large - $26 / month
+					Large - $ 0,0361 / month
 				</div>
 				<ul class="main-instance-pannel-info">
 					<li>
-					<strong>Requests per second:</strong> <span class="special-text special-text-small">1.000</span>
+					<strong>Requests per second:</strong> <span class="special-text special-text-small">250</span>
 					</li>
 					<li>
-					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
+					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">1.000</span>
 					</li>
 					<li>
 					<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">10.000.000</span>
@@ -221,11 +229,11 @@
 		<div class="col-md-6 text-center main-pricing-cols">
 			<div class="panel panel-info main-instance-pannel">
 				<div class="panel-heading">
-					X-Large - $45 / month
+					X-Large - $ 0,0625 / hour
 				</div>
 				<ul class="main-instance-pannel-info">
 					<li>
-					<strong>Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
+					<strong>Requests per second:</strong> <span class="special-text special-text-small">500</span>
 					</li>
 					<li>
 					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
@@ -238,14 +246,14 @@
 			<br />
 			<div class="panel panel-info main-instance-pannel">
 				<div class="panel-heading">
-					XX-Large $86 / month
+					XX-Large $ 0,1194 / hour
 				</div>
 				<ul class="main-instance-pannel-info">
 					<li>
-					<strong>Requests per second:</strong> <span class="special-text special-text-small">3.000</span>
+					<strong>Requests per second:</strong> <span class="special-text special-text-small">1500</span>
 					</li>
 					<li>
-					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">3.000</span>
+					<strong>Insert Requests per second:</strong> <span class="special-text special-text-small">2.000</span>
 					</li>
 					<li>
 					<strong>Max number of stored elements:</strong> <span class="special-text special-text-small">30.000.000</span>
@@ -253,10 +261,11 @@
 				</ul>
 			</div>
 			<div class="prices-disclamer">
+				<span class="free-text">* During the first month you can use two Small instances with no charge!</span><br />
 				All the prices are expressed by shard. Remember that the first shard of a group is always composed by two shards but you will be charged just by one. Please have in consideration that one of the shards could be off-line, in order to provide the best user experience, please try to reserve enough shards to cover all the needs when one of the shards is down.
 			</div>
 		</div>
-	</div>-->
+	</div>
 
 	<div class="col-md-6 text-right main-suscribe-column">
 		<h2>

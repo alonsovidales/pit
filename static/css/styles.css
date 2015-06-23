@@ -379,3 +379,7 @@ ul.group-desc {
 #month-do-date-cost {
 	font-weight: bold;
 }
+
+.free-text {
+	color: #deaa1b;
+}

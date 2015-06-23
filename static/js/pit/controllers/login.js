@@ -53,6 +53,7 @@ var LoginController = (function() {
 
 	if (loggedIn()) {
 		$(function() {
+			$('#try-it-button').hide();
 			doLogin();
 			loginQuery(user, key);
 		});

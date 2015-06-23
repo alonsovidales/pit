@@ -15,7 +15,7 @@
 	<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
 </head>
-<body role="document" class="info">
+<body role="document" class="contact">
 
 <!-- Navigation -->
 <nav class="navbar navbar-default navbar-fixed-top top-nav-bar">
@@ -61,33 +61,40 @@
 				<a href="account-panel">Management Panel</a>
 				</li>
 				<li class="dropdown" id="login-dropdown">
-				<a class="dropdown-toggle" href="javascript:void(0);" data-toggle="dropdown">
-					<span class="label label-success">
-						Log In <strong class="caret"></strong>
-					</span>
-				</a>
-				<div class="dropdown-menu login-dropdown-menu">
-					<form class="navbar-form navbar-right" id="login-form">
-						<span id="login-incorrect" class="label label-danger">
-							User/Pass incorrect
+					<a class="dropdown-toggle" href="javascript:void(0);" data-toggle="dropdown" style="padding: 6px">
+						<span type="button" class="btn btn-success btn-s" aria-label="Left Align">
+							Log In <strong class="caret"></strong>
 						</span>
-						<div class="login-form-group">
-							<input type="email" placeholder="Email" class="form-control input-sm" id="login-email" required>
-						</div>
-						<div class="login-form-group">
-							<input type="password" placeholder="Password" class="form-control input-sm" id="login-pass" required>
-						</div>
-						<div class="login-form-group">
-							<button type="submit" class="btn btn-success btn-sm" id="login-button">Sign in</button>
-						</div>
-					</form>
-				</div>
+					</a>
+					<div class="dropdown-menu login-dropdown-menu">
+						<form class="navbar-form navbar-right" id="login-form">
+							<span id="login-incorrect" class="label label-danger">
+								User/Pass incorrect
+							</span>
+							<div class="login-form-group">
+								<input type="email" placeholder="Email" class="form-control input-sm" id="login-email" required>
+							</div>
+							<div class="login-form-group">
+								<input type="password" placeholder="Password" class="form-control input-sm" id="login-pass" required>
+							</div>
+							<div class="login-form-group">
+								<button type="submit" class="btn btn-success btn-sm" id="login-button">Sign in</button>
+							</div>
+						</form>
+					</div>
+				</li>
+				<li id="try-it-button">
+					<a href="try-it" style="padding: 7px">
+						<button type="button" class="btn btn-warning btn-s" aria-label="Left Align">
+							Try It!
+						</button>
+					</a>
 				</li>
 				<li id="logout-container" class="page-scroll">
-				<div class="navbar-form navbar-right" id="log-out-div">
-					<small id="account-name-top"></small>
-					<button type="submit" id="log-out-button" class="btn btn-danger">Log out</button>
-				</div>
+					<div class="navbar-form navbar-right" id="log-out-div">
+						<small id="account-name-top"></small>
+						<button type="submit" id="log-out-button" class="btn btn-danger">Log out</button>
+					</div>
 				</li>
 			</ul>
 		</div>
@@ -100,11 +107,11 @@
 	<div class="col-md-12 text-center main-title contact-title">
 		<div class="main-page-logo"></div>
 		<h2>Real-Time & Highly Scalable Recommender System</h2>
-		<p>Improve the way your users explores your products.</p>
+		<p>Improve the way your users explore your products!</p>
 	</div>
 	<div class="col-md-6 text-right contact-form-container contact-form-left contact-form-wrapper">
-		<h5><span class="special-text">We are working really hard, but this section is still not ready, sorry :'(</span></h5><br />
-		but you can contact us with any question, and we will be more than happy to help you!
+		<h2><span class="special-text">Interested?</span></h2><br />
+		If you want to use Pitia, explain us how you would plan to use it, we could grant you enough shards to fulfill expectations! For the first month you can have two Small instances for free!
 	</div>
 	<div class="col-md-6 text-left contact-form-container contact-form-wrapper">
 		<form id="contact-form">
@@ -119,6 +126,7 @@
 			</div>
 		</form>
 	</div>
+        <div style="height: 50px;"></div>
 </div>
 
 	<footer>
