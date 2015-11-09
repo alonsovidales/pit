@@ -14,6 +14,7 @@ const (
 	cContact    = "/contact"
 )
 
+// API Structure that manage the HTTP API
 type API struct {
 	shardsManager   *shardsmanager.Manager
 	accountsManager *accountsmanager.Manager
@@ -22,6 +23,8 @@ type API struct {
 	muxHTTPServer *http.ServeMux
 }
 
+// Init Initializes the API and starts listening on the specified ports serving
+// both the HTTP API and the static content
 func Init(shardsManager *shardsmanager.Manager, accountsManager *accountsmanager.Manager, staticPath string, httpPort, httpsPort int, cert, key string) (api *API, sslAPI *API) {
 	api = &API{
 		shardsManager:   shardsManager,
@@ -66,6 +69,7 @@ func (api *API) contact(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// registerAPIs Recister all the handles into the corresponding endpoints
 func (api *API) registerAPIs(ssl bool) {
 	if !ssl {
 		api.muxHTTPServer.HandleFunc(shardsmanager.CRecPath, api.shardsManager.ScoresAPIHandler)
