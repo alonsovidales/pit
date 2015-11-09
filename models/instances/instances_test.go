@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var im *InstancesModel
+var im *Model
 
 func TestMain(m *testing.M) {
 	im = InitAndKeepAlive("test", "eu-west-1", true)

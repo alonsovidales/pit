@@ -13,18 +13,29 @@ import (
 )
 
 const (
-	cTable             = "instances"
-	cPrimKey           = "hostName"
+	// cTable DynamoDB table to be used
+	cTable = "instances"
+	// cPrimKey Primary key to be used
+	cPrimKey = "hostName"
+	// cDefaultWRCapacity The capacity to be provisioned when the table is
+	// created
 	cDefaultWRCapacity = 5
-	cTTL               = 30
+	// cTTL time in seconds to wait until set as instance as abandoned
+	cTTL = 30
 )
 
+// ModelInt Interface used to control the content on the persistence table
 type ModelInt interface {
+	// GetTotalInstances Returns the total number of active instances
 	GetTotalInstances() int
+	// GetInstances Returns the host name of all the active instances
 	GetInstances() (instances []string)
+	// GetMaxShardsToAcquire Returns the max number of shards that still
+	// has to be adquired for a group
 	GetMaxShardsToAcquire(totalShards int) int
 }
 
+// Model Manages the accesses to the DynamoDB table
 type Model struct {
 	prefix         string
 	table          *dynamodb.Table
@@ -50,6 +61,7 @@ func init() {
 	}
 }
 
+// GetHostName Returns the hostname of hte current host machine
 func GetHostName() string {
 	return hostName
 }
@@ -60,6 +72,8 @@ func SetHostname(hn string) {
 	hostName = hn
 }
 
+// InitAndKeepAlive Initializes the table, connection, etc and keeps a process
+// in background to update all the information
 func InitAndKeepAlive(prefix string, awsRegion string, keepAlive bool) (im *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
 		im = &Model{
@@ -93,6 +107,8 @@ func InitAndKeepAlive(prefix string, awsRegion string, keepAlive bool) (im *Mode
 	return
 }
 
+// GetMaxShardsToAcquire Returns the max number of shards that still has to be
+// adquired for a group
 func (im *Model) GetMaxShardsToAcquire(totalShards int) (total int) {
 	im.mutex.Lock()
 	defer im.mutex.Unlock()
@@ -110,6 +126,7 @@ func (im *Model) GetMaxShardsToAcquire(totalShards int) (total int) {
 	return
 }
 
+// GetTotalInstances Returns the total number of active instances
 func (im *Model) GetTotalInstances() int {
 	if len(im.instancesAlive) == 0 {
 		return 1
@@ -118,6 +135,7 @@ func (im *Model) GetTotalInstances() int {
 	return len(im.instancesAlive)
 }
 
+// GetInstances Returns the host name of all the active instances
 func (im *Model) GetInstances() (instances []string) {
 	im.mutex.Lock()
 	instances = make([]string, len(im.instancesAlive))
