@@ -16,43 +16,76 @@ import (
 )
 
 const (
-	StatusLoading   = "LOADING"
-	StatusStarting  = "STARTING"
-	StatusActive    = "ACTIVE"
+	// StatusLoading The shard is loading data from the storage
+	StatusLoading = "LOADING"
+	// StatusStarting After load the data, the shard is recalculating the tree
+	StatusStarting = "STARTING"
+	// StatusActive The shard is ready to perform prefictions with enought
+	// data loaded in memory and the tree builded
+	StatusActive = "ACTIVE"
+	// StatusNoRecords There is not enought records in memory to start the
+	// tree calculations, see cMinRecordsToStart
 	StatusNoRecords = "NO_RECORDS"
 
+	// cMinRecordsToStart The minimal number of records to build a tree
 	cMinRecordsToStart = 100
-	cRecTreeMaxDeep    = 30
+	// cRecTreeMaxDeep The max deep for the tree, as higest the deep, as
+	// better are going to be the predictions, but the bias will be higer
+	// also be higer as also the time to recalculate the tree
+	cRecTreeMaxDeep = 30
+	// cRecTreeNumOfTrees The number of root threes to have for this shard,
+	// the root trees are going to be the trees that starts for the most
+	// common items
 	cRecTreeNumOfTrees = 10
 
+	// S3BUCKET name of the S3 bucket where the backups are going to be stored
 	S3BUCKET = "pit-backups"
 )
 
+// Int Interface the defined all the possible interactions with this
+// recommender system
 type Int interface {
-	// Calculates the scores for the given records, and stores in memory
-	// the classification for further processing
+	// CalcScores Calculates the scores for the given records, and stores
+	// in memory the classification for further processing
 	CalcScores(recID uint64, scores map[uint64]uint8, maxToReturn int) (result []uint64)
-	// Just adds a new record to the recommender system in order to
-	// increase the knoledge DB
+	// AddRecord Just adds a new record to the recommender system in order
+	// to increase the knoledge DB
 	AddRecord(recID uint64, scores map[uint64]uint8)
+	// GetTotalElements Returns the max number of elements that can ba
+	// allocated on this recomender shard
 	GetTotalElements() uint64
-	// CalcScores Lanches the ETL process to create the tree
+	// RecalculateTree Lanches the ETL process to create the tree
 	RecalculateTree()
-	// Stores all the records serialized in a inexpensive storage system
+	// SaveBackup Stores all the records serialized in a inexpensive
+	// storage system
 	SaveBackup()
-	// Restore from backup
+	// LoadBackup Restores all the information from backup
 	LoadBackup() (success bool)
 	// GetStatus Returns the current status of this recommender system,
-	// the posible statuses can be: ACTIVE, STARTING, NO_RECORDS
+	// the posible statuses can be: LOADING, ACTIVE, STARTING, NO_RECORDS
 	GetStatus() string
+	// GetStoredElements Returns the current total number of elements
+	// stored by this shard
 	GetStoredElements() uint64
+	// GetAvgScores Returns the average score for a slice of items, the
+	// returned value is a map where the key is the element ID and the
+	// value the average clasification for that element
 	GetAvgScores([]uint64) map[uint64]float64
-
+	// Stop Stops all the background tasks that are being performed by the
+	// recommender like the garbage collector
 	Stop()
-
+	// SetMaxElements Sets the max number of elements that can be stored by
+	// the recommender shard
 	SetMaxElements(maxClassif uint64)
+	// SetMaxScore Sets the max score to have in consideration, note that
+	// the score starts at 0
 	SetMaxScore(maxScore uint8)
+	// IsDirty returns true in case of any record was added since the last
+	// time the tree was regenerated
 	IsDirty() bool
+
+	// DestroyS3Backup Removes all the data stored by this shard on S3
+	DestroyS3Backup() (success bool)
 }
 
 type score struct {
@@ -62,6 +95,8 @@ type score struct {
 	prev   *score
 }
 
+// Recommender This struct will manage and provide access to a recomender
+// system
 type Recommender struct {
 	Int
 
@@ -91,6 +126,9 @@ type Recommender struct {
 	cloning bool
 }
 
+// NewShard Initialize a Recommender objects and returns it, this method also
+// launches the background garbage collector based on LRU that is going to
+// expire the oldest items
 func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint8, s3Region string) (rc *Recommender) {
 	log.Info("Starting shard:", identifier, "With max number of elements:", maxClassif)
 
@@ -114,30 +152,45 @@ func NewShard(s3Path string, identifier string, maxClassif uint64, maxScore uint
 	return
 }
 
+// Stop Stops all the background tasks that are being performed by the
+// recommender like the garbage collector
 func (rc *Recommender) Stop() {
 	rc.running = false
 }
 
+// SetMaxElements Sets the max number of elements that can be stored by the
+// recommender shard
 func (rc *Recommender) SetMaxElements(maxClassif uint64) {
 	rc.maxClassif = maxClassif
 }
 
+// SetMaxScore Sets the max score to have in consideration, note that the score
+// starts at 0
 func (rc *Recommender) SetMaxScore(maxScore uint8) {
 	rc.maxScore = maxScore
 }
 
+// GetTotalElements Returns the max number of elements that can ba allocated on
+// this recomender shard
 func (rc *Recommender) GetTotalElements() uint64 {
 	return rc.maxClassif
 }
 
+// GetStoredElements Returns the current total number of elements stored by
+// this shard
 func (rc *Recommender) GetStoredElements() uint64 {
 	return rc.totalClassif
 }
 
+// GetStatus Returns the current status of this recommender system, the posible
+// statuses can be: LOADING, ACTIVE, STARTING, NO_RECORDS
 func (rc *Recommender) GetStatus() string {
 	return rc.status
 }
 
+// GetAvgScores Returns the average score for a slice of items, the returned
+// value is a map where the key is the element ID and the value the average
+// clasification for that element
 func (rc *Recommender) GetAvgScores(itemIDs []uint64) (scores map[uint64]float64) {
 	scores = make(map[uint64]float64)
 	for _, item := range itemIDs {
@@ -147,6 +200,8 @@ func (rc *Recommender) GetAvgScores(itemIDs []uint64) (scores map[uint64]float64
 	return
 }
 
+// CalcScores Calculates the scores for the given records, and stores in memory
+// the classification for further processing
 func (rc *Recommender) CalcScores(recID uint64, scores map[uint64]uint8, maxToReturn int) (result []uint64) {
 	rc.AddRecord(recID, scores)
 
@@ -158,6 +213,8 @@ func (rc *Recommender) CalcScores(recID uint64, scores map[uint64]uint8, maxToRe
 	return
 }
 
+// AddRecord Just adds a new record to the recommender system in order to
+// increase the knoledge DB
 func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
 	var sc *score
 	var existingRecord bool
@@ -208,6 +265,7 @@ func (rc *Recommender) AddRecord(recID uint64, scores map[uint64]uint8) {
 	log.Debug("Stored elements:", rc.totalClassif, "Max stored elements:", rc.maxClassif)
 }
 
+// RecalculateTree Lanches the ETL process to create the tree
 func (rc *Recommender) RecalculateTree() {
 	// No new record was added, so is not necessary to calculate the tree
 	// again
@@ -251,6 +309,7 @@ func (rc *Recommender) IsDirty() bool {
 	return rc.dirty
 }
 
+// DestroyS3Backup Removes all the data stored by this shard on S3
 func (rc *Recommender) DestroyS3Backup() (success bool) {
 	log.Info("Destroying backup on S3:", rc.identifier)
 	auth, err := aws.EnvAuth()
@@ -270,6 +329,7 @@ func (rc *Recommender) DestroyS3Backup() (success bool) {
 	return true
 }
 
+// LoadBackup Restores all the information from backup
 func (rc *Recommender) LoadBackup() (success bool) {
 	log.Info("Loading backup from S3:", rc.identifier)
 	auth, err := aws.EnvAuth()
@@ -304,6 +364,7 @@ func (rc *Recommender) LoadBackup() (success bool) {
 	return true
 }
 
+// SaveBackup Stores all the records serialized in a inexpensive storage system
 func (rc *Recommender) SaveBackup() {
 	log.Info("Storing backup on S3:", rc.identifier)
 	rc.mutex.Lock()
