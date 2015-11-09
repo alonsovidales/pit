@@ -28,38 +28,58 @@ const (
 	cShardTTL          = 10
 )
 
+// ErrGroupUserNotFound User not found on the system
 var ErrGroupUserNotFound = errors.New("User not found")
-var ErrGroupInUse = errors.New("Group ID in use")
-var ErrGroupNotFound = errors.New("Group not found")
-var ErrAuth = errors.New("Authentication problem")
-var ErrMaxShardsByGroup = errors.New("Max number of shards for this group reached")
-var ErrSharPrevOwnedGroup = errors.New("This instance yet owns a shard on this group")
 
+// ErrGroupInUse The specified group ID is already in use
+var ErrGroupInUse = errors.New("Group ID in use")
+
+// ErrGroupNotFound The group wwas not found on the system
+var ErrGroupNotFound = errors.New("Group not found")
+
+// ErrAuth Problem trying to authenticate the user
+var ErrAuth = errors.New("Authentication problem")
+
+// ErrMaxShardsByGroup The max number of shards had been reached for this group
+// and can't be adquired anymore shards
+var ErrMaxShardsByGroup = errors.New("Max number of shards for this group reached")
+
+// ErrSharPrevOwnedGroup The current local machine already have adquired an
+// instance on this group
+var ErrSharPrevOwnedGroup = errors.New("This instance already owns a shard on this group")
+
+// GroupInfoInt Interface that provides access to management of a group
 type GroupInfoInt interface {
 	AcquireShard() (adquired bool, err error)
-	GetUserId()
+	GetUserID()
 	ReleaseShard()
 	IsThisInstanceOwner() bool
 	RegenerateKey() (key string, err error)
 	SetNumShards(numShards int) error
 }
 
+// Shard Defines the shard information that is persisted on the DB
 type Shard struct {
-	Addr    string `json:"addr"`
+	// Addr Current address of the local host
+	Addr string `json:"addr"`
+	// GroupID ID of the group
 	GroupID string `json:"group_id"`
-	ShardID int    `json:"shard_id"`
-	LastTs  int64  `json:"last_ts"`
+	// ShardID ID of the shard
+	ShardID int `json:"shard_id"`
+	// LastTs Last time stamp when the shard information was updated
+	LastTs int64 `json:"last_ts"`
 
 	expire bool
-
-	md *Model
+	md     *Model
 }
 
+// GroupInfo Defined the information to be stored on this group
 type GroupInfo struct {
-	GroupInfoInt `json:"-"`
-
-	UserID  string `json:"user_id"`
-	Secret  string `json:"secret"`
+	// UserID Id of the user
+	UserID string `json:"user_id"`
+	// Secret to be used to access to this group
+	Secret string `json:"secret"`
+	// GroupID OD of the group
 	GroupID string `json:"group_id"`
 
 	// Type group type, will be used for billing proposals
@@ -77,23 +97,37 @@ type GroupInfo struct {
 
 	// Shards the key of this map is the host name of the owner of the
 	// shard, and the value the shard
-	Shards       map[int]*Shard    `json:"-"`
+	Shards map[int]*Shard `json:"-"`
+	// ShardsByAddr List od shards bu host
 	ShardsByAddr map[string]*Shard `json:"-"`
 
 	md *Model
 }
 
+// ModelInt manages the access to the stored information of a shard
 type ModelInt interface {
+	// GetAllGroups Returns all the groups of shards by user
 	GetAllGroups() map[string]map[string]*GroupInfo
+	// GetAllGroupsByUserID Returns all the groups of shards for a single user
 	GetAllGroupsByUserID(uid string) map[string]*GroupInfo
+	// GetGroupByUserKeyID Returns a group by a specified UserID checking
+	// out if the key is correct
 	GetGroupByUserKeyID(userID, secret, groupID string) (gr *GroupInfo, err error)
+	// GetGroupByID Returns a group by Group ID
 	GetGroupByID(groupID string) (gr *GroupInfo)
+	// AddUpdateGroup Creates a group based on the provided information, or
+	// updated the information on an existing group
 	AddUpdateGroup(grType, userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error)
+	// ReleaseAllAcquiredShards Releases all the adquired shards for this
+	// instance and returns the number of released shards
 	ReleaseAllAcquiredShards()
+	// GetTotalNumberOfShards Returns the total number of shards in general
 	GetTotalNumberOfShards() (tot int)
+	// RemoveGroup Removes a group by ID and all the information of this group
 	RemoveGroup(groupID string) (err error)
 }
 
+// Model Manages all the information relative to a shard
 type Model struct {
 	// groups by user ID and Group ID
 	groups map[string]map[string]*GroupInfo
@@ -108,6 +142,8 @@ type Model struct {
 	conn            *dynamodb.Server
 }
 
+// GetModel Initializes a new model and launches a process that getting the
+// information from the DB keeps updated all this in memory
 func GetModel(prefix, awsRegion, adminEmail string) (md *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
 		md = &Model{
@@ -120,14 +156,23 @@ func GetModel(prefix, awsRegion, adminEmail string) (md *Model) {
 				Region: aws.Regions[awsRegion],
 			},
 		}
-		md.groupsTable = md.getTable(md.groupsTableName, cGroupsPrimKey, cGroupsDefaultWRCapacity, md.groupsMutex)
-		md.shardsTable = md.getTable(md.shardsTableName, cShardsPrimKey, cShardsDefaultWRCapacity, md.shardsMutex)
+		md.groupsTable = md.getTable(
+			md.groupsTableName,
+			cGroupsPrimKey,
+			cGroupsDefaultWRCapacity,
+			md.groupsMutex,
+		)
+		md.shardsTable = md.getTable(
+			md.shardsTableName,
+			cShardsPrimKey,
+			cShardsDefaultWRCapacity,
+			md.shardsMutex,
+		)
 
 		md.updateInfo()
 		go func() {
 			for {
 				md.updateInfo()
-
 				time.Sleep(time.Second * cUpdatePeriod)
 			}
 		}()
@@ -139,6 +184,8 @@ func GetModel(prefix, awsRegion, adminEmail string) (md *Model) {
 	return
 }
 
+// AddUpdateGroup Creates a group based on the provided information, or updated
+// the information on an existing group
 func (md *Model) AddUpdateGroup(grType, userID, groupID string, numShards int, maxElements, maxReqSec, maxInsertReqSec uint64, maxScore uint8) (gr *GroupInfo, key string, err error) {
 	var grOk bool
 
@@ -194,6 +241,7 @@ func (md *Model) AddUpdateGroup(grType, userID, groupID string, numShards int, m
 	return gr, gr.Secret, gr.persist()
 }
 
+// GetGroupByID Returns a group by Group ID
 func (md *Model) GetGroupByID(groupID string) (gr *GroupInfo) {
 	md.groupsMutex.Lock()
 	defer md.groupsMutex.Unlock()
@@ -209,6 +257,7 @@ func (md *Model) GetGroupByID(groupID string) (gr *GroupInfo) {
 	return
 }
 
+// GetAllGroupsByUserID Returns all the groups of shards for a single user
 func (md *Model) GetAllGroupsByUserID(uid string) map[string]*GroupInfo {
 	if uid == md.adminEmail {
 		result := make(map[string]*GroupInfo)
@@ -224,10 +273,13 @@ func (md *Model) GetAllGroupsByUserID(uid string) map[string]*GroupInfo {
 	return md.groups[uid]
 }
 
+// GetAllGroups Returns all the groups of shards by user
 func (md *Model) GetAllGroups() map[string]map[string]*GroupInfo {
 	return md.groups
 }
 
+// GetGroupByUserKeyID Returns a group by a specified UserID checking out if
+// the key is correct
 func (md *Model) GetGroupByUserKeyID(userID, secret, groupID string) (gr *GroupInfo, err error) {
 	md.groupsMutex.Lock()
 	defer md.groupsMutex.Unlock()
@@ -256,10 +308,13 @@ func (md *Model) GetGroupByUserKeyID(userID, secret, groupID string) (gr *GroupI
 	return nil, ErrGroupUserNotFound
 }
 
-func (gr *GroupInfo) GetUserId() string {
+// GetUserID Returns the User ID owner of the group
+func (gr *GroupInfo) GetUserID() string {
 	return gr.UserID
 }
 
+// RemoveAllContent Removes all the content for a group, removing also all the
+// persisted information
 func (gr *GroupInfo) RemoveAllContent(rec *recommender.Recommender) bool {
 	prevShards := gr.NumShards
 	if rec.DestroyS3Backup() {
@@ -277,6 +332,7 @@ func (gr *GroupInfo) RemoveAllContent(rec *recommender.Recommender) bool {
 	return false
 }
 
+// SetNumShards Sets the number of shards to be used on a group
 func (gr *GroupInfo) SetNumShards(numShards int) error {
 	if numShards > gr.NumShards {
 		for i := gr.NumShards; i < numShards; i++ {
@@ -289,6 +345,7 @@ func (gr *GroupInfo) SetNumShards(numShards int) error {
 	return gr.persist()
 }
 
+// RegenerateKey Regenerates a random key for a group
 func (gr *GroupInfo) RegenerateKey() (key string, err error) {
 	secret, _ := uuid.NewV4()
 	gr.Secret = secret.String()
@@ -296,12 +353,17 @@ func (gr *GroupInfo) RegenerateKey() (key string, err error) {
 	return gr.Secret, gr.persist()
 }
 
+// IsThisInstanceOwner Returns is the current host owns an instance of this
+// group
 func (gr *GroupInfo) IsThisInstanceOwner() bool {
 	_, is := gr.ShardsByAddr[instances.GetHostName()]
 
 	return is
 }
 
+// AcquireShard Try to adquire a shard on the current group, this action is
+// based on a competition strategy to adquire the shard in a persistance system
+// with eventual consistency as DynamoDB
 func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 	if len(gr.ShardsByAddr) == len(gr.Shards) {
 		log.Debug("Max number of shards allowed, can't adquire more")
@@ -351,22 +413,26 @@ func (gr *GroupInfo) AcquireShard() (adquired bool, err error) {
 	return false, errors.New(fmt.Sprint("Race condition trying to adquire the shard:", gr.GroupID, ":", shard.ShardID))
 }
 
+// keepAliveOwnedShard Updates the timestamp of an adquired shard in order to
+// inform to the other hosts that the ownership is still valid
 func (md *Model) keepAliveOwnedShard(groupID string, hostName string) {
 	for {
 		if gr := md.GetGroupByID(groupID); gr == nil {
-			return
+			break
 		} else {
 			if shard, ok := gr.ShardsByAddr[hostName]; ok {
 				shard.LastTs = time.Now().Unix()
 				shard.persist()
 				time.Sleep(time.Second * cUpdateShardPeriod)
 			} else {
-				return
+				break
 			}
 		}
 	}
 }
 
+// updateInfo syncronize the information in memory with the information on the
+// DB
 func (md *Model) updateInfo() {
 	// This structure will be used in order to determine what groups are
 	// still in use and what not
@@ -448,6 +514,7 @@ func (md *Model) updateInfo() {
 	}
 }
 
+// addShard Adds a new shard to the goup and persist the group status
 func (gr *GroupInfo) addShard(shardID int) (shard *Shard, err error) {
 	shard = &Shard{
 		GroupID: gr.GroupID,
@@ -462,6 +529,7 @@ func (gr *GroupInfo) addShard(shardID int) (shard *Shard, err error) {
 	return
 }
 
+// delShard Removes a shard of the persistance layer
 func (gr *GroupInfo) delShard(shardID int) {
 	shard := &Shard{
 		GroupID: gr.GroupID,
@@ -474,10 +542,13 @@ func (gr *GroupInfo) delShard(shardID int) {
 	delete(gr.Shards, shardID)
 }
 
+// getDynamoDbKey Returns the string that will identify a shard on the DB
 func (sh *Shard) getDynamoDbKey() string {
 	return fmt.Sprintf("%s:%d", sh.GroupID, sh.ShardID)
 }
 
+// consistentUpdate Performs an update on an eventual consistent DB as DynamoDB
+// making it consistent based on a wait and ask strategy
 func (sh *Shard) consistentUpdate() (success bool) {
 	attKey := &dynamodb.Key{
 		HashKey:  sh.getDynamoDbKey(),
@@ -499,6 +570,7 @@ func (sh *Shard) consistentUpdate() (success bool) {
 	return true
 }
 
+// persist Persists on the DB the information of the shard
 func (sh *Shard) persist() (err error) {
 	// Persis the shard row
 	if shJSON, err := json.Marshal(sh); err == nil {
@@ -525,6 +597,7 @@ func (sh *Shard) persist() (err error) {
 	return
 }
 
+// GetTotalNumberOfShards Returns the total number of shards in general
 func (md *Model) GetTotalNumberOfShards() (tot int) {
 	md.groupsMutex.Lock()
 	for _, groups := range md.groups {
@@ -537,6 +610,7 @@ func (md *Model) GetTotalNumberOfShards() (tot int) {
 	return
 }
 
+// persist Persists the information of the group on the DB
 func (gr *GroupInfo) persist() (err error) {
 	// Persis the groups row
 	if grJSON, err := json.Marshal(gr); err == nil {
@@ -560,6 +634,7 @@ func (gr *GroupInfo) persist() (err error) {
 	return
 }
 
+// RemoveGroup Removes a group by ID and all the information of this group
 func (md *Model) RemoveGroup(groupID string) (err error) {
 	attKey := &dynamodb.Key{
 		HashKey:  groupID,
@@ -579,6 +654,8 @@ func (md *Model) RemoveGroup(groupID string) (err error) {
 	return
 }
 
+// ReleaseAllAcquiredShards Releases all the adquired shards for this instance
+// and returns the number of released shards
 func (md *Model) ReleaseAllAcquiredShards() {
 	md.groupsMutex.Lock()
 	defer md.groupsMutex.Unlock()
@@ -596,6 +673,8 @@ func (md *Model) ReleaseAllAcquiredShards() {
 	}
 }
 
+// getTable Returns a Dynamo table and in case of this table don't being
+// defined, creates it
 func (md *Model) getTable(tName, tPrimKey string, rwCapacity int64, mutex sync.Mutex) (table *dynamodb.Table) {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -639,6 +718,7 @@ func (md *Model) getTable(tName, tPrimKey string, rwCapacity int64, mutex sync.M
 	return
 }
 
+// delTables Removes all the tables, method used for testing proposals only
 func (md *Model) delTables() {
 	if tableDesc, err := md.conn.DescribeTable(md.shardsTableName); err == nil {
 		if _, err = md.conn.DeleteTable(*tableDesc); err != nil {
