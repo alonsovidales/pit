@@ -4,6 +4,8 @@ import (
 	"fmt"
 	logger "log"
 	"os"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -45,7 +47,9 @@ func SetLogger(newLevel int, filePath string, maxSizeMB int64) {
 // or higer
 func Debug(v ...interface{}) {
 	if level <= DEBUG {
-		newLog("DEBUG: ", v...)
+		_, file, line, _ := runtime.Caller(1)
+		fileParts := strings.Split(file, "/")
+		newLog(fmt.Sprintf("DEBUG: <%s:%d> ", fileParts[len(fileParts)-1], line), v...)
 	}
 }
 
@@ -61,7 +65,9 @@ func Info(v ...interface{}) {
 // or higer
 func Error(v ...interface{}) {
 	if level <= ERROR {
-		newLog("ERROR: ", v...)
+		_, file, line, _ := runtime.Caller(1)
+		fileParts := strings.Split(file, "/")
+		newLog(fmt.Sprintf("ERROR: <%s:%d> ", fileParts[len(fileParts)-1], line), v...)
 	}
 }
 
@@ -69,7 +75,9 @@ func Error(v ...interface{}) {
 // the application
 func Fatal(v ...interface{}) {
 	if level <= FATAL {
-		newLog("FATAL: ", v...)
+		_, file, line, _ := runtime.Caller(1)
+		fileParts := strings.Split(file, "/")
+		newLog(fmt.Sprintf("FATAL: <%s:%d> ", fileParts[len(fileParts)-1], line), v...)
 	}
 }
 

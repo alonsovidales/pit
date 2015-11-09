@@ -63,15 +63,15 @@ func TestRecommenderSaveLoad(t *testing.T) {
 			sh.totalClassif, "and the max defined boundary is:", maxClassifications)
 	}
 
-	if sh.status != STATUS_SARTING {
-		t.Error("The expectede status was:", STATUS_SARTING, "but the actual one is:", sh.status)
+	if sh.status != StatusStarting {
+		t.Error("The expectede status was:", StatusStarting, "but the actual one is:", sh.status)
 	}
 
 	log.Debug("Processing tree...")
 	sh.RecalculateTree()
 
-	if sh.status != STATUS_ACTIVE {
-		t.Error("The expectede status was:", STATUS_ACTIVE, "but the actual one is:", sh.status)
+	if sh.status != StatusActive {
+		t.Error("The expectede status was:", StatusActive, "but the actual one is:", sh.status)
 	}
 
 	s, e = Readln(r)
@@ -87,8 +87,8 @@ func TestRecommenderSaveLoad(t *testing.T) {
 	sh = NewShard("/testing", "test_collab_insertion", maxClassifications, 5, "eu-west-1")
 	sh.RecalculateTree()
 
-	if sh.status != STATUS_NORECORDS {
-		t.Error("The expectede status was:", STATUS_NORECORDS, "but the actual one is:", sh.status)
+	if sh.status != StatusNoRecords {
+		t.Error("The expectede status was:", StatusNoRecords, "but the actual one is:", sh.status)
 	}
 
 	sh.LoadBackup()
