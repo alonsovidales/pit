@@ -21,21 +21,41 @@ import (
 )
 
 const (
-	CScoresPath    = "/scores"
-	CRecPath       = "/rec"
+	// CScoresPath Endpoint that will provide the scores for some provided
+	// items
+	CScoresPath = "/scores"
+	// CRecPath Path that will provide the recommendations based on a list
+	// of items
+	CRecPath = "/rec"
+	// CGroupInfoPath Endpoint that returns information from all the shards
+	// that composes the group, status, elements stored, etc
 	CGroupInfoPath = "/info"
 
 	// User required actions
-	CDelGroup            = "/del_group"
-	CRegenerateGroupKey  = "/generate_group_key"
-	CGetGroupsByUser     = "/get_groups_by_user"
-	CAddUpdateGroup      = "/add_group"
-	CSetShardsGroup      = "/set_shards_group"
+
+	// CDelGroup Removes a shard and it contents
+	CDelGroup = "/del_group"
+	// CRegenerateGroupKey Endpoint used to regenerate the security key for
+	// a shard
+	CRegenerateGroupKey = "/generate_group_key"
+	// CGetGroupsByUser Endpoint that will return the list of groups for a
+	// specifig user
+	CGetGroupsByUser = "/get_groups_by_user"
+	// CAddUpdateGroup Endpoint to add a new group, or update the
+	// information for a existing one
+	CAddUpdateGroup = "/add_group"
+	// CSetShardsGroup Sets the number of shards by a group
+	CSetShardsGroup = "/set_shards_group"
+	// CRemoveShardsContent Enpoint that removes all the content form the
+	// persistence layer and cleans up the data on the persistence storage
 	CRemoveShardsContent = "/remove_group_shards_content"
 
+	// cMaxMinsToStore Max time in minutes to keep the metrics in memory
 	cMaxMinsToStore = 1440 // A day
 )
 
+// Manager Structure that provides HTTP access to manage all the different
+// groups and shards on each grorup
 type Manager struct {
 	awsRegion      string
 	s3BackupsPath  string
@@ -50,17 +70,24 @@ type Manager struct {
 	usersModel     users.ModelInt
 }
 
+// statsReqSec Statistics for a shard
 type statsReqSec struct {
-	StoredElements uint64   `json:"stored_elements"`
-	RecTreeStatus  string   `json:"rec_tree_status"`
-	BySecStats     []uint64 `json:"queries_by_sec"`
-	ByMinStats     []uint64 `json:"queries_by_min"`
-	queries        uint64
-	inserts        uint64
-	mutex          sync.Mutex
-	stop           bool
+	// StoredElements Number of stored elements on this shard
+	StoredElements uint64 `json:"stored_elements"`
+	// RecTreeStatus Current status of the recommender tree
+	RecTreeStatus string `json:"rec_tree_status"`
+	// BySecStats Number of queries per second
+	BySecStats []uint64 `json:"queries_by_sec"`
+	// ByMinStats Number of queries per minute
+	ByMinStats []uint64 `json:"queries_by_min"`
+	queries    uint64
+	inserts    uint64
+	mutex      sync.Mutex
+	stop       bool
 }
 
+// Init Initializes and returns the Manager for a group, this method also
+// launches the monitorization process in background
 func Init(prefix, awsRegion, s3BackupsPath string, port int, usersModel users.ModelInt, adminEmail string) (mg *Manager) {
 	mg = &Manager{
 		s3BackupsPath: s3BackupsPath,
@@ -81,14 +108,20 @@ func Init(prefix, awsRegion, s3BackupsPath string, port int, usersModel users.Mo
 	return
 }
 
+// Stop deactivates a group, and stops all the management tasks
 func (mg *Manager) Stop() {
 	mg.active = false
 }
 
+// IsFinished Returs if the manager has finish the adquisition of shards for
+// this group or not
 func (mg *Manager) IsFinished() bool {
 	return mg.finished
 }
 
+// acquiredShard After determine that is possible to acquire a shard on this
+// local machine, this method is requested to set up the shard and all the
+// monitorizaion processes
 func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	rec := recommender.NewShard(mg.s3BackupsPath, group.GroupID, group.MaxElements, group.MaxScore, mg.awsRegion)
 	rec.LoadBackup()
@@ -105,6 +138,8 @@ func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	log.Info("Finished acquisition of shard on group:", group.GroupID)
 }
 
+// recalculateBillingForUser Recalculates a bill for the given user based in
+// the used shards and time for each type
 func (mg *Manager) recalculateBillingForUser(userID string) {
 	groups := mg.shardsModel.GetAllGroupsByUserID(userID)
 	us := mg.usersModel.AdminGetUserInfoByID(userID)
@@ -123,6 +158,8 @@ func (mg *Manager) recalculateBillingForUser(userID string) {
 	}
 }
 
+// keepUpdateGroup updates each second the status of the shard on S3 and keeps
+// it adquired for the local machine
 func (mg *Manager) keepUpdateGroup(uid, groupID string) {
 	for {
 		gr := mg.shardsModel.GetGroupByID(groupID)
@@ -144,6 +181,9 @@ func (mg *Manager) keepUpdateGroup(uid, groupID string) {
 	}
 }
 
+// recalculateRecs Determines is the shard have receive any new data each 30
+// seconds, and in case of have new data launched the reprocesed of the tree
+// and stores the backup after finish
 func (mg *Manager) recalculateRecs() {
 	for {
 		for _, rec := range mg.acquiredShards {
@@ -187,6 +227,7 @@ func (st *statsReqSec) monitorStats() {
 	}
 }
 
+// RemoveShardsContent Used to wipe the content of a shard included the content on the persistance layer
 func (mg *Manager) RemoveShardsContent(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -222,6 +263,7 @@ func (mg *Manager) RemoveShardsContent(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+// GroupInfoAPIHandler Returns all the information relative to a group of shards
 func (mg *Manager) GroupInfoAPIHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -284,6 +326,8 @@ func (mg *Manager) GroupInfoAPIHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(respJSON)
 }
 
+// AddUpdateGroup Creates a new group of shards, or in case of exists updates
+// an existing group
 func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -347,6 +391,7 @@ func (mg *Manager) AddUpdateGroup(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf(`{"success": true, "key": "%s"}`, key)))
 }
 
+// RegenerateGroupKey Creates a new random key for a group
 func (mg *Manager) RegenerateGroupKey(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -377,6 +422,7 @@ func (mg *Manager) RegenerateGroupKey(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetGroupsByUser Returns the group registered for a user
 func (mg *Manager) GetGroupsByUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -395,6 +441,7 @@ func (mg *Manager) GetGroupsByUser(w http.ResponseWriter, r *http.Request) {
 	w.Write(groupsJSON)
 }
 
+// DelGroup removes a group of shards and all the content on the shards
 func (mg *Manager) DelGroup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -430,6 +477,7 @@ func (mg *Manager) DelGroup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// SetShards Updates the number of shards that composes a group
 func (mg *Manager) SetShards(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -475,6 +523,9 @@ func (mg *Manager) SetShards(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ScoresAPIHandler Returns the scores for a group of items on a shard, in case
+// of can't find a shard available on the local machine, this method propagates
+// the query to another instance
 func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -523,12 +574,12 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			scores := rec.GetAvgScores(itemsSlice)
-			scoresToJson := make(map[string]float64)
+			scoresToJSON := make(map[string]float64)
 			for k, v := range scores {
-				scoresToJson[fmt.Sprintf("%d", k)] = v
+				scoresToJSON[fmt.Sprintf("%d", k)] = v
 			}
 
-			result, _ := json.Marshal(scoresToJson)
+			result, _ := json.Marshal(scoresToJSON)
 			// User not authorised to access to this shard
 			w.WriteHeader(200)
 			w.Write([]byte(fmt.Sprintf(`{
@@ -682,6 +733,8 @@ func (mg *Manager) ScoresAPIHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("API result:", string(responseBody))
 }
 
+// canAcquireNewShard Checks if this machine have enough resources to allocate
+// a shard of the given group
 func (mg *Manager) canAcquireNewShard(group *shardinfo.GroupInfo) bool {
 	maxShardsToAcquire := mg.instancesModel.GetMaxShardsToAcquire(mg.shardsModel.GetTotalNumberOfShards())
 	if maxShardsToAcquire <= len(mg.acquiredShards) {
@@ -699,6 +752,7 @@ func (mg *Manager) canAcquireNewShard(group *shardinfo.GroupInfo) bool {
 	return uint64(allocableElems) >= totalElems+group.MaxElements
 }
 
+// manage mintorize the status of the shards, updates bills, etc
 func (mg *Manager) manage() {
 	go mg.recalculateRecs()
 
@@ -715,7 +769,7 @@ func (mg *Manager) manage() {
 			}
 		}
 
-		for usID, _ := range users {
+		for usID := range users {
 			mg.recalculateBillingForUser(usID)
 		}
 
