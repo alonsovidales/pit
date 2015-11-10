@@ -23,34 +23,68 @@ const (
 	cDefaultWRCapacity = 5
 	cCacheTTL          = 10 * time.Second
 
+	// CActivityAccountType Identifies that the activity is related to the
+	// account like change the pass, etc
 	CActivityAccountType = "account"
-	CActivityShardsType  = "shards"
+	// CActivityShardsType Identified that the activity is related with any
+	// of the shards
+	CActivityShardsType = "shards"
 )
 
+// ModelInt Provides an interface to manage all the users on the system
 type ModelInt interface {
+	// RegisterUserPlainKey Registers a new user on the DB storing the key
+	// as it, the key has to respect the format used to generate the users
+	// keys
 	RegisterUserPlainKey(uid string, key string, ip string) (*User, error)
+	// HashPassword Returns a one way encripted string from the provided
+	// string
 	HashPassword(password string) string
+	// RegisterUser Registers a new user on the DB using the specified
+	// information
 	RegisterUser(uid string, key string, ip string) (user *User, err error)
+	// GetUserInfo Returns the user object associated with the given uid
+	// and after check if the key matches
 	GetUserInfo(uid string, key string) (user *User)
+	// AdminGetUserInfoByID Returns the user object associated with the
+	// given uid, this is a super admin method
 	AdminGetUserInfoByID(uid string) (user *User)
+	// GetRegisteredUsers Returns the list of registered users on the DB
 	GetRegisteredUsers() (users map[string]*User)
 }
 
+// Int Interface that provides access to manage a single user
 type Int interface {
+	// DisableUser Disables the user and returns if the disabled user was
+	// persisted
 	DisableUser() (persisted bool)
+	// EnableUser Enabled the user and returns if the disabled user was
+	// persisted
 	EnableUser() (persisted bool)
+	// UpdateUser Updates the user information, on this case the key and
+	// returns if the disabled user was persisted
 	UpdateUser(key string) bool
+	// AddActivityLog Adds a new activity log related to this user and
+	// returns if the disabled user was persisted
 	AddActivityLog(actionType string, des string, ip string) bool
+	// GetAllActivity Returns all the activity log lines related to this
+	// user
 	GetAllActivity() (activity map[string]*LogLine)
 }
 
+// LogLine Data representation of a log line
 type LogLine struct {
-	Ts      int64  `json:"ts"`
-	IP      string `json:"ip"`
+	// Ts Timestamp when the log line was added
+	Ts int64 `json:"ts"`
+	// IP Origin IP address of the user tha added this log line
+	IP string `json:"ip"`
+	// LogType Type of the log line added
 	LogType string `json:"type"`
-	Desc    string `json:"desc"`
+	// Desc Description of the event
+	Desc string `json:"desc"`
 }
 
+// Model Dta structure with the info to me persisted
 type Model struct {
 	prefix    string
 	secret    []byte
@@ -61,50 +95,79 @@ type Model struct {
 	mutex     sync.Mutex
 }
 
+// Billing Represents the billing history of a user
 type Billing struct {
+	// Inst Instancias, the key is the type and the value the amounth of
+	// instances
 	Inst map[string]int
-	Ts   int64
+	// Ts Timestamp when this line was added
+	Ts int64
 }
 
+// BillingLine Represents a line on a users bill
 type BillingLine struct {
-	Group     string  `json:"group"`
-	Instances int     `json:"instances"`
-	Type      string  `json:"type"`
-	Price     float64 `json:"price"`
-	From      int64   `json:"from"`
-	To        int64   `json:"to"`
-	Paid      bool    `json:"paid"`
+	// Group Group name
+	Group string `json:"group"`
+	// Instances Number of instances
+	Instances int `json:"instances"`
+	// Type Type of the instance
+	Type string `json:"type"`
+	// Price Total price
+	Price float64 `json:"price"`
+	// From from date
+	From int64 `json:"from"`
+	// To to date
+	To int64 `json:"to"`
+	// Paid Indicates if the bill is already paid or not
+	Paid bool `json:"paid"`
 }
 
-type User struct {
-	Int `json:"-"`
+// Bills Representation of the bills associated to a user
+type Bills struct {
+	// From Timestamp
+	From uint64 `json:"from"`
+	// To Timestamp
+	To uint64 `json:"to"`
+	// Total amounth of money, usually in american dollars by default
+	Amount float64 `json:"amount"`
+	// Paid Indicates if the bill is already paid or not
+	Paid bool `json:"paid"`
+}
 
-	uid      string
-	key      string
-	Enabled  string `json:"-"`
-	logs     map[string][]*LogLine
+// BillingInfo Represents the historic billing info of a user
+type BillingInfo struct {
+	// ToPay The remaining amounth to be paid
+	ToPay float64 `json:"to_pay"`
+	// Bills The list of associated bills
+	Bills []*Bills `json:"bills"`
+	// History Billing lines
+	History []*BillingLine `json:"history"`
+}
+
+// User Represents a user on the DB
+type User struct {
+	// uid User ID
+	uid string
+	// key Security key
+	key string
+	// Enabled Determines if the user is enabled or not
+	Enabled string `json:"-"`
+	// logs logs associated with this user
+	logs map[string][]*LogLine
+	// billHist Billing history
 	billHist []*Billing
 
-	RegTs int64  `json:"reg_ts"`
+	// RegTs Timestamp when the user was registered
+	RegTs int64 `json:"reg_ts"`
+	// RegIP IP address from where this user was registered
 	RegIP string `json:"reg_ip"`
 
 	mutex sync.Mutex
 	md    *Model
 }
 
-type Bills struct {
-	From   uint64  `json:"from"`
-	To     uint64  `json:"to"`
-	Amount float64 `json:"amount"`
-	Paid   bool    `json:"paid"`
-}
-
-type BillingInfo struct {
-	ToPay   float64        `json:"to_pay"`
-	Bills   []*Bills       `json:"bills"`
-	History []*BillingLine `json:"history"`
-}
-
+// GetModel Returns a new user model and starts the task that keeps
+// synchronized the information in memory with the DB
 func GetModel(prefix string, awsRegion string) (um *Model) {
 	if awsAuth, err := aws.EnvAuth(); err == nil {
 		um = &Model{
@@ -134,6 +197,8 @@ func (um *Model) cacheManager() {
 	}
 }
 
+// RegisterUserPlainKey Registers a new user on the DB storing the key as it,
+// the key has to respect the format used to generate the users keys
 func (um *Model) RegisterUserPlainKey(uid string, key string, ip string) (*User, error) {
 	// Sanitize e-mail addr removin all the + Chars in order to avoid fake
 	// duplicated accounts
@@ -162,10 +227,13 @@ func (um *Model) RegisterUserPlainKey(uid string, key string, ip string) (*User,
 	return user, nil
 }
 
+// RegisterUser Registers a new user on the DB using the specified information
 func (um *Model) RegisterUser(uid string, key string, ip string) (*User, error) {
 	return um.RegisterUserPlainKey(uid, um.HashPassword(key), ip)
 }
 
+// GetUserInfo Returns the user object associated with the given uid and after
+// check if the key matches
 func (um *Model) GetUserInfo(uid string, key string) (user *User) {
 	user = um.AdminGetUserInfoByID(uid)
 	if user == nil || user.key != um.HashPassword(key) || user.Enabled == "0" {
@@ -175,6 +243,8 @@ func (um *Model) GetUserInfo(uid string, key string) (user *User) {
 	return
 }
 
+// AdminGetUserInfoByID Returns the user object associated with the given uid,
+// this is a super admin method
 func (um *Model) AdminGetUserInfoByID(uid string) (user *User) {
 	um.mutex.Lock()
 	defer um.mutex.Unlock()
@@ -218,6 +288,7 @@ func (um *Model) AdminGetUserInfoByID(uid string) (user *User) {
 	return
 }
 
+// GetRegisteredUsers Returns the list of registered users on the DB
 func (um *Model) GetRegisteredUsers() (users map[string]*User) {
 	if rows, err := um.table.Scan(nil); err == nil {
 		users = make(map[string]*User)
@@ -250,6 +321,7 @@ func (um *Model) GetRegisteredUsers() (users map[string]*User) {
 	return
 }
 
+// GetBillingInfo Returns all the billin info associated with a user account
 func (us *User) GetBillingInfo() (bi *BillingInfo) {
 	/*type Billing struct {
 		Inst map[string]int
@@ -337,7 +409,7 @@ func (us *User) GetBillingInfo() (bi *BillingInfo) {
 			}
 		}
 
-		for group, _ := range lastNumInst {
+		for group := range lastNumInst {
 			if _, ok := bl.Inst[group]; !ok {
 				delete(lastTimeSaw, group)
 				delete(lastNumInst, group)
@@ -373,24 +445,29 @@ func (us *User) GetBillingInfo() (bi *BillingInfo) {
 	return
 }
 
+// DisableUser Disables the user and returns if the disabled user was persisted
 func (us *User) DisableUser() (persisted bool) {
 	us.Enabled = "0"
 
 	return us.persist()
 }
 
+// EnableUser Enabled the user and returns if the disabled user was persisted
 func (us *User) EnableUser() (persisted bool) {
 	us.Enabled = "1"
 
 	return us.persist()
 }
 
+// UpdateUser Updates the user information, on this case the key and returns if
+// the disabled user was persisted
 func (us *User) UpdateUser(key string) bool {
 	us.key = us.md.HashPassword(key)
 
 	return us.persist()
 }
 
+// GetLastBillInfo Returns the last billing info asscoaiated with a user
 func (us *User) GetLastBillInfo() *Billing {
 	if len(us.billHist) == 0 {
 		return nil
@@ -398,6 +475,8 @@ func (us *User) GetLastBillInfo() *Billing {
 	return us.billHist[len(us.billHist)-1]
 }
 
+// AddBillingHist Adds a new set of instruments to the billing info and returns
+// if the info was persisted or not
 func (us *User) AddBillingHist(instruments map[string]int) bool {
 	us.billHist = append(us.billHist, &Billing{
 		Inst: instruments,
@@ -407,6 +486,8 @@ func (us *User) AddBillingHist(instruments map[string]int) bool {
 	return us.persist()
 }
 
+// AddActivityLog Adds a new activity log related to this user and returns if
+// the disabled user was persisted
 func (us *User) AddActivityLog(actionType string, desc, ip string) bool {
 	if _, ok := us.logs[actionType]; !ok {
 		us.logs[actionType] = []*LogLine{}
@@ -422,10 +503,12 @@ func (us *User) AddActivityLog(actionType string, desc, ip string) bool {
 	return us.persist()
 }
 
+// GetAllActivity Returns all the activity log lines related to this user
 func (us *User) GetAllActivity() (activity map[string][]*LogLine) {
 	return us.logs
 }
 
+// HashPassword Returns a one way encripted string from the provided string
 func (um *Model) HashPassword(password string) string {
 	return base64.StdEncoding.EncodeToString(pbkdf2.Key([]byte(password), um.secret, 4096, sha256.Size, sha256.New))
 }
@@ -500,6 +583,7 @@ func (um *Model) initTable() {
 	}
 }
 
+// GetGroupInfo Returns the limits for a group given a group type
 func GetGroupInfo(groupType string) (reqs, records uint64, costHour float64) {
 	switch groupType {
 	case "s":

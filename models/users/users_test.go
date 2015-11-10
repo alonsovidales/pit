@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var um *UsersModel
+var um *Model
 
 func TestMain(m *testing.M) {
 	um = GetModel("test", "eu-west-1")
