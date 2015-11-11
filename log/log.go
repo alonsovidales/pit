@@ -27,6 +27,8 @@ var path string
 var maxSize int64
 var mutex = new(sync.Mutex)
 
+// Levels Different allowed debugging levels, the allowed levels are: DEBUG,
+// INFO, ERROR, FATAL
 var Levels = map[string]int{
 	"DEBUG": DEBUG,
 	"INFO":  INFO,

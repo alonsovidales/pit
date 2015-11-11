@@ -134,7 +134,7 @@ func (mg *Manager) acquiredShard(group *shardinfo.GroupInfo) {
 	go mg.reqSecStats[group.GroupID].monitorStats()
 	mg.acquiredShards[group.GroupID] = rec
 
-	go mg.keepUpdateGroup(group.GetUserId(), group.GroupID)
+	go mg.keepUpdateGroup(group.GetUserID(), group.GroupID)
 	log.Info("Finished acquisition of shard on group:", group.GroupID)
 }
 
